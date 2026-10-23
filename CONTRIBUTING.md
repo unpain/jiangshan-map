@@ -4,7 +4,7 @@
   <strong>English</strong> · <a href="CONTRIBUTING_ZH.md">简体中文 (Chinese)</a>
 </p>
 
-Thank you for your interest in **Chronicles of the Realm (`jiangshan-map`)**! This project aims to build a zero-dependency, historically rigorous interactive atlas of Chinese dynastic territories, administrative divisions, ancient cities, and historical journeys crafted in the aesthetic of traditional Chinese parchment cartography.
+Thank you for your interest in **Chronicles of the Realm (`jiangshan-map`)**! This project aims to build a historically rigorous interactive atlas of Chinese dynastic territories, administrative divisions, ancient cities, and historical journeys crafted in the aesthetic of traditional Chinese parchment cartography.
 
 We welcome contributions of all kinds, including:
 - **Historical & Geographic Corrections**: Fixing ancient place coordinates, refining prefecture/circuit evolution notes (`remark`), or adjusting dynastic phase transition years;
@@ -19,9 +19,11 @@ We welcome contributions of all kinds, including:
 ```text
 ├── index.html               # Main application page & semantic layout
 ├── llms.txt                 # Machine-readable protocol specification for LLMs & AI Agents
-├── css/style.css            # Traditional parchment theme & responsive styles
-├── js/
-│   ├── app.js               # Core controller: Mercator projection, collision-free label layout, timeline, Trace Place, Person Chronicle, Quiz & window.atlasAPI
+├── src/style.css            # Traditional parchment theme & responsive styles
+├── src/components/         # Vue components
+├── src/composables/        # TypeScript lifecycle and commands
+├── src/atlas/              # Typed renderer/projection and domain controller
+├── js/                     # Generated data bundles
 │   ├── map_data.js          # 18 historical periods metadata, phase rules, ancient settlements, milestones, rivers, passes & transport corridors
 │   ├── lore_data.js         # Imperial eras (CHINESE_ERA_SPANS), reigning monarchs, biographical routes, city lore (CITY_LORE), landmark events & gazetteer
 │   ├── atlas_boot.js        # Pre-bundled initial snapshot (s_zhanguo) for instant first-paint rendering
@@ -39,13 +41,14 @@ We welcome contributions of all kinds, including:
 ## Local Development & Validation Workflow
 
 1. **Clone and Serve Locally**:
-   Built with vanilla ES6 and SVG with zero runtime or npm dependencies—simply serve the repository root with any static HTTP server:
+   Built with Vue 3, TypeScript, Vite and Leaflet. Use Node.js 22.12+ and install dependencies:
    ```bash
    git clone https://github.com/DeanChensj/jiangshan-map.git
    cd jiangshan-map
-   python3 -m http.server 8000
+   npm install
+   npm run dev
    ```
-   Then open `http://localhost:8000` in your browser (or `http://localhost:8000/?lang=en` for English UI).
+   Then open `http://localhost:8765` in your browser (or `http://localhost:8765/?lang=en` for English UI).
 
 2. **Run the Automated Validation Suite**:
    Before opening a Pull Request, always run the built-in validation script to verify timeline continuity, snapshot integrity, coordinate validity, polygon topology, and 100% English translation coverage:

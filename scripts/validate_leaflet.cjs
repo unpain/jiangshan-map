@@ -1,10 +1,10 @@
-// Run against a local static server: node scripts/validate_leaflet.cjs
+// Run against the Vite dev or preview server: node scripts/validate_leaflet.cjs
 // Requires Playwright; ATLAS_BROWSER defaults to the installed Edge browser.
 const assert = require('node:assert/strict');
 const { chromium } = require('playwright');
 
 (async () => {
-  const browser = await chromium.launch({ headless: true, channel: process.env.ATLAS_BROWSER || 'msedge' });
+  const browser = await chromium.launch({ headless: true, ...(process.env.ATLAS_BROWSER === 'chromium' ? {} : { channel: process.env.ATLAS_BROWSER || 'msedge' }) });
   try {
     const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
     const errors = [];

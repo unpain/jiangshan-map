@@ -153,15 +153,27 @@ In browser automation environments (Playwright / WebMCP), call `window.atlasAPI`
 
 ## Run Locally
 
-No dependencies or build steps required. Clone and serve with any static HTTP server:
+Stack: Vue 3 + TypeScript + Vite + Leaflet. Requires Node.js 22.12+; npm and Bun are supported.
 
 ```bash
-git clone https://github.com/DeanChensj/jiangshan-map.git
-cd jiangshan-map
-python3 -m http.server 8000
+npm install
+npm run dev
 ```
 
-Then open `http://localhost:8000` in your browser.
+With Bun, run `bun install` then `bun run dev` (or `bunx vite --host 127.0.0.1 --port 8765`). Open http://127.0.0.1:8765; use the URL printed by Vite if that port is occupied.
+
+```bash
+npm run typecheck       # Strict Vue / TypeScript checks
+npm run build           # Typecheck and create dist/
+npm run preview         # Preview the production build
+npm test                # Data, topology and domain regression suite; requires Python 3
+npm run test:e2e         # Browser regression against a running dev/preview server
+npm run profile         # Native mouse-wheel benchmark
+```
+
+Deploy `dist/` to a static host, including under a subdirectory. Serving the source root directly no longer runs the app. Existing query links and `window.atlasAPI` remain compatible. Browser checks use Edge by default; alternatively run `npx playwright install chromium` and set `ATLAS_BROWSER=chromium`. Set `ATLAS_URL` for another server and `ATLAS_PYTHON` for a Python executable.
+
+Vue components live in `src/components/`; `src/composables/useAtlas.ts` owns startup, commands and teardown. The Leaflet renderer, projection, resource scope and loading boundary are TypeScript modules in `src/atlas/`. Historical domain rendering remains in `controller.js`, with a typed `.d.ts` interface. Generated data stays in `js/` for compatibility with existing tools. Map instances and large datasets stay outside deep Vue reactivity.
 
 ---
 

@@ -3,7 +3,7 @@
 const assert = require('node:assert/strict');
 const {chromium} = require('playwright');
 (async () => {
-  const browser = await chromium.launch({headless: true, channel: process.env.ATLAS_BROWSER || 'msedge'});
+  const browser = await chromium.launch({headless: true, ...(process.env.ATLAS_BROWSER === 'chromium' ? {} : { channel: process.env.ATLAS_BROWSER || 'msedge' })});
   try {
     const page = await browser.newPage({viewport: {width: 1440, height: 1000}, deviceScaleFactor: 2});
     const errors = [];

@@ -4295,3 +4295,7 @@ html[lang="en"] .genealogy-list li.person-ev-row {
 #leaflet-map #atlas-svg * { animation: none !important; transition: none !important; }
 #leaflet-map .cap-breath-ring.is-delayed { display: none; }
 .atlas-annotation-cache { position: absolute; left: 0; top: 0; z-index: 450; display: none; pointer-events: none; transform-origin: 0 0; will-change: transform; }
+
+#app { width: 100%; height: 100%; }
+.atlas-loading { position: fixed; inset: 0; z-index: 2000; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #f4efdf; color: #553c2b; gap: 16px; }
+.atlas-loading button { padding: 8px 20px; cursor: pointer; }

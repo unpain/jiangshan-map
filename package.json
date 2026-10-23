@@ -1,0 +1,31 @@
+{
+  "name": "jiangshan-map",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 8765",
+    "typecheck": "vue-tsc --noEmit",
+    "build": "vue-tsc --noEmit && vite build",
+    "preview": "vite preview --host 127.0.0.1 --port 8765",
+    "test": "node scripts/validate_atlas.js",
+    "test:e2e": "node scripts/validate_leaflet.cjs && node scripts/validate_vue.cjs",
+    "profile": "node scripts/profile_leaflet.cjs"
+  },
+  "dependencies": {
+    "leaflet": "1.9.4",
+    "vue": "^3.5.44"
+  },
+  "devDependencies": {
+    "@types/leaflet": "^1.9.21",
+    "@types/node": "^22.0.0",
+    "@vitejs/plugin-vue": "^6.0.0",
+    "playwright": "^1.56.0",
+    "sirv": "^3.0.0",
+    "typescript": "~5.9.3",
+    "vite": "^8.3.5",
+    "vue-tsc": "^3.1.0"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  }
+}

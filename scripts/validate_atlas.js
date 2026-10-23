@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Automated Integrity & Topology Validation Suite for Jiangshan Atlas (江山时序)
- * Zero external dependencies — runs in standard Node.js.
+ * Runs in Node.js with the TypeScript source adapter installed by npm.
  */
 'use strict';
 
@@ -53,8 +53,8 @@ function main() {
   }
 
   // Verify controller syntax
-  const appCode = fs.readFileSync(path.join(JS_DIR, 'app.js'), 'utf8');
-  new vm.Script(appCode, { filename: 'app.js' });
+  const { appCode, runtimeCode, composable, markup } = require('./atlas_source.cjs');
+  new vm.Script(runtimeCode, { filename: 'app.js' });
 
   const provinces = sandbox.window.PROVINCE_OUTLINES;
   const snapshots = sandbox.window.ATLAS_SNAPSHOTS;
@@ -342,7 +342,7 @@ function main() {
   verifyShape(bootSnaps.s_zhanguo_a.polities[0].shape, 'boot.s_zhanguo_a.polities[0]');
 
   // 6. Verify Unified Milestone Balloon Auto-Show ("史事浮签") follows #chk-milestones directly & dead code pruned
-  const indexHtml = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+  const indexHtml = markup();
   assert(
     appCode.includes('_syncAutoMilestoneBalloon') &&
       appCode.includes('ep-close') &&
@@ -355,7 +355,7 @@ function main() {
   );
 
   // 7. Validate PR #7 (pass icon), PR #8 (balloon caret & bookmark toggle tab), and PR #10 (SEO metadata & sitemap)
-  const styleCss = fs.readFileSync(path.join(ROOT, 'css', 'style.css'), 'utf8');
+  const styleCss = fs.readFileSync(path.join(ROOT, 'src', 'style.css'), 'utf8');
   assert(
     appCode.includes('A1.25,1.25 0 0,0 -1.25,1.1') &&
       appCode.includes('_syncTogglePaneButton') &&
@@ -426,14 +426,8 @@ function main() {
       `Static topic page topics/${tf} must have canonical ${expectedCanon}, JSON-LD, zero undefined/NaN, clean English naming, and be linked in sitemap.xml and index.html`
     );
   }
-  const htmlVersions = Array.from(new Set(indexHtml.match(/\?v=[0-9a-zA-Z_.-]+/g) || []));
-  const appVersions = Array.from(new Set(appCode.match(/\?v=[0-9a-zA-Z_.-]+/g) || []));
-  assert(
-    htmlVersions.length === 1 &&
-      appVersions.length === 1 &&
-      htmlVersions[0] === appVersions[0],
-    `Cache-busting ?v= query strings must be uniform across index.html (${htmlVersions}) and js/app.js (${appVersions})`
-  );
+  assert(indexHtml.includes('type="module" src="/src/main.ts"'), 'Vue entry must be loaded as an ES module');
+  assert(!/<script src="js\/app.js/.test(indexHtml), 'Legacy controller must not be bootstrapped twice');
 
   // 8. Verify AI-Native API (window.atlasAPI: locate / resolvePlace / inspect), PLACE_GAZETTEER, llms.txt & skill
   for (const strayFile of [
@@ -463,7 +457,7 @@ function main() {
   );
   const llmsTxt = fs.readFileSync(llmsTxtPath, 'utf8');
   assert(
-    appCode.includes('window.atlasAPI') &&
+    composable.includes('window.atlasAPI') &&
       appCode.includes('resolvePlace(') &&
       appCode.includes('inspect(') &&
       appCode.includes('locate(') &&
@@ -488,8 +482,19 @@ function main() {
     pathname: '/jiangshan-map/',
   };
   sandbox.window.location = sandbox.location;
-  vm.runInContext(appCode, sandbox, { filename: 'app.js' });
+  vm.runInContext(runtimeCode, sandbox, { filename: 'app.js' });
   const ControllerClass = sandbox.window.HistoricalAtlasController;
+  // Headless prototype fixtures do not run the mounted controller constructor.
+  ControllerClass.prototype.scope = {
+    timeout: (...args) => sandbox.setTimeout(...args),
+    clearTimeout: (...args) => sandbox.clearTimeout(...args),
+    interval: (...args) => sandbox.setInterval(...args),
+    clearInterval: (...args) => sandbox.clearInterval(...args),
+    frame: (...args) => sandbox.requestAnimationFrame(...args),
+    cancelFrame: (...args) => sandbox.cancelAnimationFrame(...args),
+    listen: (...args) => args[0].addEventListener(...args.slice(1)),
+    guard: callback => callback,
+  };
   assert(typeof ControllerClass === 'function', 'HistoricalAtlasController must be exposed on window');
 
   const DEG_TO_RAD = Math.PI / 180;
@@ -895,7 +900,7 @@ function main() {
 
   // CUJ 9k: Python CLI (skills/jiangshan-atlas/scripts/jiangshan.py) Execution Smoke Test
   const cliOut = execFileSync(
-    'python3',
+    process.env.ATLAS_PYTHON || 'python3',
     [skillPyPath, '--year', '1079, 1080, 1094, 1097', '--place', '湖州 → 黄州 → 惠州 → 儋州'],
     { encoding: 'utf8' }
   ).trim();
@@ -906,7 +911,7 @@ function main() {
   );
 
   // CUJ 9l: Neighbor Polity Clean Fill & Stray Full-China Ring Guard
-  const cssSrc = fs.readFileSync(path.join(ROOT, 'css', 'style.css'), 'utf8');
+  const cssSrc = fs.readFileSync(path.join(ROOT, 'src', 'style.css'), 'utf8');
   assert(
     !cssSrc.includes('fill: url(#diag-hatch)'),
     'css/style.css must not apply diagonal hatch pattern (url(#diag-hatch)) to .polity-shape.neighbor'
@@ -1153,7 +1158,7 @@ function main() {
   );
 
   // Verify index.html, README.md, and llms.txt metadata sync and removal of unused diag-hatch pattern
-  const htmlSrc = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+  const htmlSrc = markup();
   assert(!htmlSrc.includes('id="diag-hatch"'), 'index.html must not contain unused #diag-hatch pattern');
   const readmeSrc = fs.readFileSync(path.join(ROOT, 'README.md'), 'utf8');
   const readmeZhSrc = fs.readFileSync(path.join(ROOT, 'README_ZH.md'), 'utf8');
@@ -2835,7 +2840,7 @@ function main() {
       'Legacy _journeyKeyForMilestone helper must remain removed'
     );
     assert(
-      !/展阅行迹|View Route/.test(fs.readFileSync(path.join(ROOT, 'js', 'app.js'), 'utf8')),
+      !/展阅行迹|View Route/.test(fs.readFileSync(path.join(ROOT, 'src', 'atlas', 'controller.js'), 'utf8')),
       'Legacy 展阅行迹 / View Route buttons must not exist in js/app.js'
     );
   }
@@ -3901,8 +3906,8 @@ function main() {
 
   // CUJ 32: Timeline & Person Chronicle Playback Speed Control (1x -> 2x -> 0.25x -> 0.5x -> 1x)
   {
-    const indexHtml = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
-    const styleCss = fs.readFileSync(path.join(ROOT, 'css', 'style.css'), 'utf8');
+    const indexHtml = markup();
+    const styleCss = fs.readFileSync(path.join(ROOT, 'src', 'style.css'), 'utf8');
     assert(
       indexHtml.includes('class="playback-controls-group"') &&
         indexHtml.includes('id="act-play-speed"') &&

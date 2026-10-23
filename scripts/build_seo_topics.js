@@ -67,12 +67,12 @@ function loadAtlasRuntime() {
     'map_data.js',
     'lore_data.js',
     'i18n_dict.js',
-    'app.js',
   ]) {
     const code = fs.readFileSync(path.join(JS_DIR, file), 'utf8');
     vm.runInContext(code, sandbox, { filename: file });
   }
 
+  vm.runInContext(require('./atlas_source.cjs').runtimeCode, sandbox);
   const ControllerClass = sandbox.window.HistoricalAtlasController;
   const dynasties = sandbox.window.DYNASTY_DATA;
   const provinces = sandbox.window.PROVINCE_OUTLINES;
@@ -1502,16 +1502,19 @@ function updateIndexHtmlSeoDirectory(dynMeta, journeyMeta, featuredMeta, dynasti
   // 1. Subset Ma Shan Zheng calligraphy webfont to the exact characters rendered in #txt-seal and #dynasty-title (zero FOUT)
   const calligraphyChars = computeCalligraphySubsetText(dynasties, enLocale);
   const encodedCalligraphy = encodeURIComponent(calligraphyChars).replace(/'/g, '%27');
-  const fontLinksBlock = `  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;700&family=Noto+Sans+SC:wght@400;500&display=swap" rel="stylesheet" />\n  <link href="https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&text=${encodedCalligraphy}&display=swap" rel="stylesheet" />`;
-  const fontRegex = /  <link href="https:\/\/fonts\.googleapis\.com\/css2\?family=Noto\+Serif\+SC[^"]*" rel="stylesheet" \/>(?:\r?\n  <link href="https:\/\/fonts\.googleapis\.com\/css2\?family=Ma\+Shan\+Zheng[^"]*" rel="stylesheet" \/>)?/;
+  const fontLinksBlock = `  <link href="https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&text=${encodedCalligraphy}&display=swap" rel="stylesheet" />`;
+  const fontRegex = /  <link href="https:\/\/fonts\.googleapis\.com\/css2\?family=Ma\+Shan\+Zheng[^"]*" rel="stylesheet" \/>/;
   if (!fontRegex.test(html)) {
     throw new Error('Could not find Google Fonts stylesheet link block in index.html');
   }
   html = html.replace(fontRegex, fontLinksBlock);
 
+  const chroniclePath = path.join(ROOT, 'src', 'components', 'ChroniclePane.vue');
+  let chronicle = fs.readFileSync(chroniclePath, 'utf8');
+
   // 2. Synchronize pre-rendered Warring States opening summary & milestone list in #chronicle-pane
   const openingDyn = dynasties[0];
-  html = html.replace(
+  chronicle = chronicle.replace(
     /<p id="dynasty-summary" class="dynasty-desc">[\s\S]*?<\/p>/,
     `<p id="dynasty-summary" class="dynasty-desc">${escHtml(openingDyn.summary)}</p>`
   );
@@ -1521,10 +1524,12 @@ function updateIndexHtmlSeoDirectory(dynMeta, journeyMeta, featuredMeta, dynasti
         `            <li><span class="ev-yr">${escHtml(fmtYearShortZh(m.year))} 年</span><span>${escHtml(m.headline)}</span></li>`
     )
     .join('\n');
-  html = html.replace(
+  chronicle = chronicle.replace(
     /<ul id="milestone-list">[\s\S]*?<\/ul>/,
     `<ul id="milestone-list">\n${milestoneItemsHtml}\n          </ul>`
   );
+
+  fs.writeFileSync(chroniclePath, chronicle, 'utf8');
 
   // 3. Synchronize live dataset counts in FAQ JSON-LD and llms.txt
   const histSnapCount = Object.keys(snapshots).filter((k) => k !== 'neighbors').length;

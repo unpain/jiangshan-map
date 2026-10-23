@@ -17,7 +17,29 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck and build Vue application
+        run: npm run build
 
       - name: Run Atlas Validation Suite
         run: node scripts/validate_atlas.js
+
+      - name: Install browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Validate production browser interactions
+        run: |
+          npm run preview > /tmp/atlas-preview.log 2>&1 &
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:8765/ > /dev/null; then break; fi
+            sleep 1
+          done
+          npm run test:e2e
+        env:
+          ATLAS_BROWSER: chromium
+          ATLAS_URL: http://127.0.0.1:8765

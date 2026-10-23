@@ -77,7 +77,7 @@ def find_local_repo_root():
     if (
         candidate
         and os.path.isfile(os.path.join(candidate, "index.html"))
-        and os.path.isfile(os.path.join(candidate, "js", "app.js"))
+        and os.path.isfile(os.path.join(candidate, "src", "atlas", "controller.js"))
     ):
       return candidate
   return None
@@ -142,40 +142,8 @@ def _check_remote_reachable(url):
 
 
 def _write_offline_html(repo_root):
-  index_path = os.path.join(repo_root, "index.html")
-  with open(index_path, "r", encoding="utf-8") as f:
-    html = f.read()
-  # Strip external stylesheet/preconnect links and external avatar images so
-  # offline/sandboxed headless browsers never block on network timeouts.
-  html_local = re.sub(r"<link[^>]+https?://[^>]+>\s*", "", html)
-  html_local = re.sub(
-      r'(<img[^>]+)\bsrc="https?://[^"]+"',
-      rf'\1src="{TRANSPARENT_GIF_DATA_URI}"',
-      html_local,
-  )
-  html_local = html_local.replace(
-      '<script src="js/app.js',
-      '<style>.fade-enter { animation: none !important; opacity: 1 !important; }</style>\n'
-      '  <script src="js/atlas_snapshots.js"></script>\n'
-      '  <script src="js/i18n_dict.js"></script>\n'
-      '  <script src="js/app.js',
-  )
-  tmp_html = os.path.join(repo_root, f"_snap_skill_tmp_{os.getpid()}.html")
-  try:
-    with open(tmp_html, "w", encoding="utf-8") as f:
-      f.write(html_local)
-    return tmp_html
-  except OSError:
-    base_href = f'file://{os.path.abspath(repo_root).rstrip("/")}/'
-    html_with_base = html_local.replace(
-        "<head>", f'<head>\n  <base href="{base_href}">', 1
-    )
-    fd, fallback_html = tempfile.mkstemp(
-        prefix="_snap_skill_tmp_", suffix=".html"
-    )
-    with os.fdopen(fd, "w", encoding="utf-8") as f:
-      f.write(html_with_base)
-    return fallback_html
+  # The Vue application is an ES module build; source HTML cannot run via file://.
+  raise RuntimeError("Local Vue rendering requires Node.js, npm install and npm run build.")
 
 
 def _chrome_env():
@@ -260,11 +228,11 @@ for (const rel of [
   "js/map_data.js",
   "js/atlas_snapshots.js",
   "js/i18n_dict.js",
-  "js/lore_data.js",
-  "js/app.js"
+  "js/lore_data.js"
 ]) {
   vm.runInContext(fs.readFileSync(path.join(root, rel), "utf8"), sandbox);
 }
+vm.runInContext(require(path.join(root, "scripts", "atlas_source.cjs")).runtimeCode, sandbox);
 const ctrl = Object.create(sandbox.HistoricalAtlasController.prototype);
 ctrl.minYear = -403;
 ctrl.maxYear = 2026;
@@ -306,6 +274,7 @@ process.stdout.write(JSON.stringify(res));
         env=env,
         capture_output=True,
         text=True,
+        encoding="utf-8",
         check=False,
     )
     if proc.returncode == 0 and proc.stdout.strip():
@@ -340,6 +309,7 @@ process.stdout.write(JSON.stringify(res));
         env=_chrome_env(),
         capture_output=True,
         text=True,
+        encoding="utf-8",
         check=False,
     )
     if proc.returncode != 0:
@@ -411,6 +381,17 @@ def _verify_screenshot_png(out_path):
 
 
 def render_screenshot(query, out_path):
+  repo_root = find_local_repo_root()
+  node_bin = shutil.which("node")
+  if repo_root and node_bin:
+    abs_out = os.path.abspath(out_path)
+    os.makedirs(os.path.dirname(abs_out), exist_ok=True)
+    subprocess.run(
+        [node_bin, os.path.join(repo_root, "scripts", "render_atlas.cjs"), query, abs_out],
+        check=True,
+    )
+    _verify_screenshot_png(abs_out)
+    return
   chrome = find_chrome()
   if not chrome:
     raise RuntimeError(
@@ -445,6 +426,7 @@ def render_screenshot(query, out_path):
         env=_chrome_env(),
         capture_output=True,
         text=True,
+        encoding="utf-8",
         check=False,
     )
     if proc.returncode != 0:

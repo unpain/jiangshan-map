@@ -19,9 +19,11 @@
 ```text
 ├── index.html               # 应用主页面与语义化布局结构
 ├── llms.txt                 # 面向 LLM 与 AI Agent 的机器可读接入协议说明
-├── css/style.css            # 宣纸水墨设色主题样式与响应式布局
-├── js/
-│   ├── app.js               # 核心控制器：墨卡托投影、碰撞避让排布、时间轴、点地溯源、点人溯事、寻址挑战与 window.atlasAPI
+├── src/style.css            # 宣纸水墨设色主题样式与响应式布局
+├── src/components/         # Vue 组件
+├── src/composables/        # TypeScript 生命周期和命令
+├── src/atlas/              # 地图与投影 TS 模块、历史领域控制器
+├── js/                     # 生成的数据包
 │   ├── map_data.js          # 18 个历史时期元数据、阶段划分、古地名点位、重大历史事件、水系古泽、雄关与交通走廊
 │   ├── lore_data.js         # 历代帝王年号（CHINESE_ERA_SPANS）、在位君主、人物生平行迹、名城风华题记（CITY_LORE）、定点大事与诗词名胜辞典
 │   ├── atlas_boot.js        # 首屏极速启动快照（s_zhanguo），保障首屏零等待渲染
@@ -31,7 +33,7 @@
 ├── skills/
 │   └── jiangshan-atlas/     # Agent Skill 技能定义（SKILL.md）与零依赖 CLI 截图/查询脚本（scripts/jiangshan.py）
 └── scripts/
-    └── validate_atlas.js    # 零依赖自动化数据完整性、多边形拓扑与 27 项端到端 CUJ 校验脚本
+    └── validate_atlas.js    # 自动化数据完整性、多边形拓扑与 27 项端到端 CUJ 校验脚本
 ```
 
 ---
@@ -39,13 +41,14 @@
 ## 本地开发与验证流程
 
 1. **克隆仓库并启动本地预览**：
-   本项目采用纯原生 ES6 + SVG 构建，无需安装任何 npm 依赖即可直接运行：
+   本项目采用 Vue 3 + TypeScript + Vite + Leaflet，需要 Node.js 22.12+：
    ```bash
    git clone https://github.com/DeanChensj/jiangshan-map.git
    cd jiangshan-map
-   python3 -m http.server 8000
+   npm install
+   npm run dev
    ```
-   随后在浏览器访问 `http://localhost:8000`（英文界面可访问 `http://localhost:8000/?lang=en`）。
+   随后在浏览器访问 `http://localhost:8765`（英文界面可访问 `http://localhost:8765/?lang=en`）。
 
 2. **运行自动化数据与拓扑校验**：
    在提交 Pull Request 前，请运行内置的校验脚本，确保所有朝代时间轴连续、快照引用有效、经纬度坐标合法、多边形拓扑闭合且中英双语词条 100% 完整：
