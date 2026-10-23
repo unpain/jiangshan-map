@@ -5,7 +5,9 @@ const url = process.env.ATLAS_URL || 'http://localhost:8765';
 const channel = process.env.ATLAS_BROWSER || 'msedge';
 const ready = page => page.waitForFunction(() => window.atlasApp?._fullSnapshotsLoaded &&
   atlasApp.mapView.annotationReady && !atlasApp.mapView.annotationDirty &&
-  !atlasApp.mapView.annotationRaf && !atlasApp.mapView.moving && !atlasApp.flyRaf);
+  !atlasApp.mapView.annotationRaf && !atlasApp.mapView.dirty && !atlasApp.mapView.raf &&
+  !atlasApp.mapView.coverageRaf && !atlasApp.mapView.commitRaf &&
+  !atlasApp.mapView.moving && !atlasApp.flyRaf);
 
 // Pick an on-screen node and verify there really are pixels at its hit target.
 async function pointFor(page, selector) {
@@ -48,6 +50,8 @@ async function checkLayers(page) {
 
 // Native layer removal must remove its pixels and hits without losing its data.
 async function checkLifecycle(page) {
+  // Idle cleanup schedules geography separately from labels; compare settled frames.
+  await ready(page);
   const result = await page.evaluate(async () => {
     const app = atlasApp, view = app.mapView, map = view.map;
     const settled = () => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
