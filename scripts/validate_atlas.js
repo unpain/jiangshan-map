@@ -3300,19 +3300,18 @@ function main() {
       assert(refCorpus.includes(assetFile), `Unreferenced file in assets/: ${assetFile}`);
     }
 
-    const maShanLinkMatch = indexHtml.match(
-      /<link href="(https:\/\/fonts\.googleapis\.com\/css2\?family=Ma\+Shan\+Zheng&text=([^"&]+)&display=swap)" rel="stylesheet" \/>/
-    );
-    assert(maShanLinkMatch, 'Expected synchronous subsetted Ma Shan Zheng stylesheet <link> in index.html');
-    const subsetChars = new Set(decodeURIComponent(maShanLinkMatch[2]));
-    const requiredCalligraphyChars = [
-      '江山时序',
-      ...dynasties.map((d) => d.title || ''),
-      ...dynasties.map((d) => (enLocale.dynasties[d.key] && enLocale.dynasties[d.key].name) || ''),
-    ].join('');
-    for (const ch of requiredCalligraphyChars) {
-      assert(subsetChars.has(ch), `Ma Shan Zheng subset missing glyph "${ch}"`);
-    }
+    // WenKai ships its complete character set locally, replacing the remote subset.
+    const font = fs.readFileSync(path.join(ROOT, 'assets/fonts/LXGWWenKai-Regular.woff2'));
+    assert.strictEqual(font.toString('ascii', 0, 4), 'wOF2', 'Local WenKai must be a WOFF2 font');
+    assert.strictEqual(font.readUInt32BE(8), font.length, 'Local WenKai font must not be truncated');
+    assert(styleCss.includes("font-family: 'LXGW WenKai'") &&
+      styleCss.includes("url('../assets/fonts/LXGWWenKai-Regular.woff2')"),
+      'Shared styles must load the bundled WenKai font');
+    const svelteHtml = fs.readFileSync(path.join(ROOT, 'svelte.html'), 'utf8');
+    assert(![indexHtml, svelteHtml].some(html => html.includes('fonts.googleapis.com')),
+      'Both entries must work without a remote font service');
+    assert(fs.readFileSync(path.join(ROOT, 'assets/fonts/OFL-LXGWWenKai.txt'), 'utf8')
+      .includes('SIL OPEN FONT LICENSE Version 1.1'), 'Bundled font must include its OFL license');
 
     const pyHelperSrc = fs.readFileSync(
       path.join(ROOT, 'skills', 'jiangshan-atlas', 'scripts', 'jiangshan.py'),
