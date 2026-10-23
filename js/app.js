@@ -325,6 +325,7 @@
       this.snapshotCache = {};
 
       this._bindDom();
+      this.mapView = new LeafletAtlasMap(this);
       this._applyCamera(true);
       this._buildTerrainRivers();
       this._buildModernProvinces();
@@ -444,7 +445,7 @@
         return Promise.resolve(this.snapshots);
       }
       if (!this._fullSnapshotsPromise) {
-        this._fullSnapshotsPromise = this._loadScriptOnce('js/atlas_snapshots.js?v=20261021e').then(
+        this._fullSnapshotsPromise = this._loadScriptOnce('js/atlas_snapshots.js?v=20261023-wheel3').then(
           () => {
             this.snapshots = window.ATLAS_SNAPSHOTS || this.snapshots;
             this._hydrateSnapshots();
@@ -468,7 +469,7 @@
         return Promise.resolve(this.enLocale);
       }
       if (!this._enLocalePromise) {
-        this._enLocalePromise = this._loadScriptOnce('js/i18n_dict.js?v=20261021e').then(() => {
+        this._enLocalePromise = this._loadScriptOnce('js/i18n_dict.js?v=20261023-wheel3').then(() => {
           if (window.EN_LOCALE) {
             this.enLocale = window.EN_LOCALE;
             this.searchIndex = null;
@@ -547,7 +548,7 @@
 
     _getViewportAspect() {
       if (this.svg) {
-        const r = this.svg.getBoundingClientRect();
+        const r = this._mapViewportRect();
         if (r.width > 40 && r.height > 40) {
           return Math.max(0.65, Math.min(1.45, r.height / r.width));
         }
@@ -582,6 +583,7 @@
         node.setAttribute(k, v);
       }
       if (parent) parent.appendChild(node);
+      if (this.mapView) this.mapView.capture(node);
       return node;
     }
 
@@ -2214,7 +2216,7 @@
         this.activeMilestone.milestone.coord[0],
         this.activeMilestone.milestone.coord[1]
       );
-      const rect = this.svg.getBoundingClientRect();
+      const rect = this._mapViewportRect();
       if (!rect.width || !rect.height) return;
       const scale = Math.min(rect.width / this.camera.w, rect.height / this.camera.h);
       const padX = (rect.width - this.camera.w * scale) * 0.5;
@@ -3363,7 +3365,7 @@
 
     _findNearestPersonPin(clientX, clientY, maxPx = 26) {
       if (!this.activePerson || !this.grpJourney || !this.svg) return null;
-      const rect = this.svg.getBoundingClientRect();
+      const rect = this._mapViewportRect();
       if (!rect.width || !rect.height) return null;
       const screenScale = Math.min(rect.width / this.camera.w, rect.height / this.camera.h);
       const padX = (rect.width - this.camera.w * screenScale) * 0.5;
@@ -3967,7 +3969,7 @@
     }
 
     _findNearestTouchNode(clientX, clientY, maxPx = 22) {
-      const rect = this.svg.getBoundingClientRect();
+      const rect = this._mapViewportRect();
       if (!rect.width || !rect.height) return { settlementEl: null, milestoneEl: null };
       const [sx, sy] = this._clientToSvgPoint(clientX, clientY);
       const scale = Math.min(rect.width / this.camera.w, rect.height / this.camera.h);
@@ -5295,6 +5297,10 @@
     }
 
     _applyCamera(forceTypography = false) {
+      if (this.mapView && !this.mapView.committing) {
+        this.mapView.applyCamera(forceTypography);
+        return;
+      }
       this.svg.setAttribute(
         'viewBox',
         `${this.camera.x.toFixed(1)} ${this.camera.y.toFixed(1)} ${this.camera.w.toFixed(1)} ${this.camera.h.toFixed(1)}`
@@ -5315,7 +5321,7 @@
       const lblEl = this._id('scale-label-text');
       const barEl = this._id('scale-ruler-bar');
       if (!lblEl || !barEl || !this.svg) return;
-      const rect = (this.dragState && this.dragState.rect) || this.svg.getBoundingClientRect();
+      const rect = (this.dragState && this.dragState.rect) || this._mapViewportRect();
       const rw = rect.width || 1000;
       const rh = rect.height || 700;
       const screenScale = Math.min(rw / this.camera.w, rh / this.camera.h);
@@ -5503,7 +5509,7 @@
         const svgRect =
           (this.dragState && this.dragState.rect) ||
           (typeof this.svg.getBoundingClientRect === 'function'
-            ? this.svg.getBoundingClientRect()
+            ? this._mapViewportRect()
             : null);
         const rw = (svgRect && svgRect.width) || vw || 1000;
         const rh = (svgRect && svgRect.height) || rw * 0.7;
@@ -6401,8 +6407,13 @@
       });
     }
 
+    _mapViewportRect() {
+      if (this.mapView && this.mapView.committing && this.mapView.viewportRect) return this.mapView.viewportRect;
+      return (this.mapView ? this.mapView.container : this.svg).getBoundingClientRect();
+    }
+
     _clientToSvgPoint(clientX, clientY) {
-      const rect = this.svg.getBoundingClientRect();
+      const rect = this._mapViewportRect();
       const scale = Math.min(rect.width / this.camera.w, rect.height / this.camera.h);
       const padX = (rect.width - this.camera.w * scale) * 0.5;
       const padY = (rect.height - this.camera.h * scale) * 0.5;
@@ -8320,6 +8331,7 @@
       viewportFrame.addEventListener(
         'wheel',
         (e) => {
+          if (this.mapView) return;
           if (
             e.target &&
             e.target.closest &&
@@ -8350,6 +8362,7 @@
         { passive: false }
       );
 
+      const mapSurface = this.mapView ? this.mapView.container : this.svg;
       this.activePointers = new Map();
       this.pinchState = null;
       this.longPressTimer = null;
@@ -8362,7 +8375,8 @@
         }
       };
 
-      this.svg.addEventListener('pointerdown', (e) => {
+      mapSurface.addEventListener('pointerdown', (e) => {
+        if (this.mapView) { this.didPan = false; return; }
         if (e.pointerType === 'mouse' && e.button !== 0) return;
         this.activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
         this.svg.setPointerCapture(e.pointerId);
@@ -8377,7 +8391,7 @@
             startY: e.clientY,
             camX: this.camera.x,
             camY: this.camera.y,
-            rect: this.svg.getBoundingClientRect(),
+            rect: this._mapViewportRect(),
           };
           if (e.pointerType === 'touch' && !this.challenge) {
             const downX = e.clientX;
@@ -8421,12 +8435,12 @@
             camY: this.camera.y,
             camW: this.camera.w,
             camH: this.camera.h,
-            rect: this.svg.getBoundingClientRect(),
+            rect: this._mapViewportRect(),
           };
         }
       });
 
-      this.svg.addEventListener('pointermove', (e) => {
+      mapSurface.addEventListener('pointermove', (e) => {
         if (this.activePointers.has(e.pointerId)) {
           this.activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
         }
@@ -8441,7 +8455,7 @@
           const k = nextW / this.pinchState.camW;
           const midX = (pts[0].x + pts[1].x) * 0.5;
           const midY = (pts[0].y + pts[1].y) * 0.5;
-          const rect = this.pinchState.rect || this.svg.getBoundingClientRect();
+          const rect = this.pinchState.rect || this._mapViewportRect();
           const scale = Math.min(rect.width / nextW, rect.height / (this.pinchState.camH * k));
           const padX = (rect.width - nextW * scale) * 0.5;
           const padY = (rect.height - this.pinchState.camH * k * scale) * 0.5;
@@ -8469,7 +8483,7 @@
           }
         }
         if (this.didPan) {
-          const rect = this.dragState.rect || this.svg.getBoundingClientRect();
+          const rect = this.dragState.rect || this._mapViewportRect();
           const scale = Math.min(rect.width / this.camera.w, rect.height / this.camera.h);
           this.camera.x = this.dragState.camX - dx / scale;
           this.camera.y = this.dragState.camY - dy / scale;
@@ -8485,7 +8499,7 @@
         }
         const target = document.elementFromPoint(e.clientX, e.clientY) || e.target;
         const rawStack = document.elementsFromPoint
-          ? document.elementsFromPoint(e.clientX, e.clientY)
+          ? this.mapView.elementsFromPoint(e.clientX, e.clientY)
           : [];
         const stack = rawStack.length ? rawStack : target ? [target] : [];
         const findClosest = (sel) => {
@@ -8603,12 +8617,9 @@
             `<b>${corridorEl.dataset.corrTitle}</b><div class="tt-sub">${corridorEl.dataset.corrSummary || ''}</div>`
           );
         } else if (
-          target &&
-          target.dataset &&
-          (target.dataset.prefTitle ||
-            target.dataset.polityTitle ||
-            target.dataset.provTitle ||
-            target.dataset.countryTitle)
+          stack.some((el) => el.dataset &&
+            (el.dataset.prefTitle || el.dataset.polityTitle ||
+              el.dataset.provTitle || el.dataset.countryTitle))
         ) {
           const findData = (key) => {
             const hit = stack.find((el) => el.dataset && el.dataset[key]);
@@ -8764,7 +8775,7 @@
 
           const hitTarget = document.elementFromPoint(e.clientX, e.clientY) || e.target;
           const rawStack = document.elementsFromPoint
-            ? document.elementsFromPoint(e.clientX, e.clientY)
+            ? this.mapView.elementsFromPoint(e.clientX, e.clientY)
             : [];
           const stack = rawStack.length ? rawStack : hitTarget ? [hitTarget] : [];
           const findClosest = (sel) => {
@@ -8851,9 +8862,9 @@
           }
         }
       };
-      this.svg.addEventListener('pointerup', endPointer);
-      this.svg.addEventListener('pointercancel', endPointer);
-      this.svg.addEventListener('dblclick', (e) => {
+      mapSurface.addEventListener('pointerup', endPointer);
+      mapSurface.addEventListener('pointercancel', endPointer);
+      mapSurface.addEventListener('dblclick', (e) => {
         if (this.challenge) return;
         this._recordGestureClick();
         const [sx, sy] = this._clientToSvgPoint(e.clientX, e.clientY);
@@ -8864,14 +8875,23 @@
       // Hover tooltips (Desktop pointermove)
       const frame = this._id('viewport-frame');
       frame.addEventListener('pointermove', (e) => {
+        if (this.mapView && this.mapView.moving) return;
         if (e.pointerType === 'touch') return;
-        this.grpPrefectures
-          .querySelectorAll('.prefecture-shape.is-hovered')
-          .forEach((el) => el.classList.remove('is-hovered'));
-        inspectPointTooltip(e);
+        this._pendingHoverEvent = e;
+        if (this._hoverRaf) return;
+        this._hoverRaf = requestAnimationFrame(() => {
+          this._hoverRaf = null;
+          if (this.mapView && this.mapView.moving) return;
+          this.grpPrefectures
+            .querySelectorAll('.prefecture-shape.is-hovered')
+            .forEach((el) => el.classList.remove('is-hovered'));
+          inspectPointTooltip(this._pendingHoverEvent);
+        });
       });
 
       frame.addEventListener('pointerleave', (e) => {
+        cancelAnimationFrame(this._hoverRaf);
+        this._hoverRaf = null;
         if (e.pointerType === 'touch') return;
         this.hoverTip.classList.add('is-hidden');
       });
@@ -8888,10 +8908,14 @@
 
     _showHoverTip(e, html) {
       const rect = this._id('viewport-frame').getBoundingClientRect();
-      this.hoverTip.innerHTML = html;
+      const changed = this._hoverTipHtml !== html;
+      if (changed) {
+        this.hoverTip.innerHTML = html;
+        this._hoverTipHtml = html;
+      }
       const traceBtn = this.hoverTip.querySelector('.tt-trace-btn');
       this.hoverTip.classList.toggle('is-interactive', Boolean(traceBtn));
-      if (traceBtn) {
+      if (traceBtn && changed) {
         traceBtn.addEventListener('click', (ev) => {
           ev.stopPropagation();
           this.openGenealogyAt(Number(traceBtn.dataset.lng), Number(traceBtn.dataset.lat));
@@ -10165,7 +10189,7 @@
             const snap = this.snapshots[snapKey] || {};
             const mainPol = (snap.polities || []).find((p) => p.role === 'main') || (snap.polities || [])[0];
             let provName = '';
-            const stack = document.elementsFromPoint(cx, cy);
+            const stack = this.mapView.elementsFromPoint(cx, cy);
             const polEl = stack.find(
               (node) => node.dataset && node.dataset.polityTitle && node.dataset.polityRole !== 'neighbor'
             );

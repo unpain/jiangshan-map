@@ -12,8 +12,8 @@
   --hairline: rgba(43, 38, 34, 0.12);
   --card-shadow: 0 10px 30px rgba(43, 38, 34, 0.14), 0 1px 2px rgba(43, 38, 34, 0.08);
   --corner-radius: 14px;
-  --serif-stack: 'Noto Serif SC', 'Songti SC', 'SimSun', serif;
-  --sans-stack: 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --serif-stack: 'Songti SC', 'SimSun', serif;
+  --sans-stack: 'PingFang SC', 'Microsoft YaHei', sans-serif;
   --calligraphy-stack: 'Ma Shan Zheng', 'STKaiti', 'KaiTi', var(--serif-stack);
   --dynasty-accent: #3a3733;
 }
@@ -4276,3 +4276,22 @@ html[lang="en"] .genealogy-list li.person-ev-row {
     max-height: min(50%, 360px);
   }
 }
+
+/* Leaflet viewport with Canvas geography and lightweight SVG annotations. */
+#leaflet-map {
+  position: absolute; inset: 0; background: var(--water-fill); z-index: 0;
+  contain: layout paint size;
+  /* Web-font subsets arriving mid-gesture must not relayout every map label. */
+  --serif-stack: 'Songti SC', 'SimSun', serif;
+  --sans-stack: 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --calligraphy-stack: 'STKaiti', 'KaiTi', var(--serif-stack);
+}
+#leaflet-map #atlas-svg { position: absolute; inset: 0; z-index: 450; }
+#leaflet-map #ocean-bg, #leaflet-map #grp-terrain { display: none; }
+.atlas-canvas { position: absolute; left: 0; top: 0; z-index: 200; pointer-events: none; transform-origin: 0 0; will-change: transform; }
+#leaflet-map #atlas-svg { transform-origin: 0 0; will-change: transform; overflow: visible; }
+/* Animating SVG radii/opacity invalidates the entire annotation surface.
+   Keep map affordances static; timeline and journey playback still work. */
+#leaflet-map #atlas-svg * { animation: none !important; transition: none !important; }
+#leaflet-map .cap-breath-ring.is-delayed { display: none; }
+.atlas-annotation-cache { position: absolute; left: 0; top: 0; z-index: 450; display: none; pointer-events: none; transform-origin: 0 0; will-change: transform; }
