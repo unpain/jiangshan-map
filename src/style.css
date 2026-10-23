@@ -1,6 +1,6 @@
 @font-face {
-  font-family: 'LXGW WenKai';
-  src: url('../assets/fonts/LXGWWenKai-Regular.woff2') format('woff2');
+  font-family: 'LXGW WenKai Mono';
+  src: url('../assets/fonts/LXGWWenKaiMono-Regular.woff2') format('woff2');
   font-style: normal;
   font-weight: 400;
   font-display: swap;
@@ -20,7 +20,7 @@
   --hairline: rgba(43, 38, 34, 0.12);
   --card-shadow: 0 10px 30px rgba(43, 38, 34, 0.14), 0 1px 2px rgba(43, 38, 34, 0.08);
   --corner-radius: 0;
-  --serif-stack: "LXGW WenKai", "KaiTi", serif;
+  --serif-stack: "LXGW WenKai Mono", monospace;
   --sans-stack: var(--serif-stack);
   --calligraphy-stack: var(--serif-stack);
   --dynasty-accent: #3a3733;
@@ -2982,10 +2982,6 @@ html[lang="en"] .genealogy-list li.person-ev-row {
 #leaflet-map {
   position: absolute; inset: 0; background: var(--water-fill); z-index: 0;
   contain: layout paint size;
-  /* Web-font subsets arriving mid-gesture must not relayout every map label. */
-  --serif-stack: 'Songti SC', 'SimSun', serif;
-  --sans-stack: 'PingFang SC', 'Microsoft YaHei', sans-serif;
-  --calligraphy-stack: 'STKaiti', 'KaiTi', var(--serif-stack);
 }
 .atlas-canvas { position: absolute; left: 0; top: 0; z-index: 200; pointer-events: none; transform-origin: 0 0; will-change: transform; }
 .atlas-annotations { position: absolute; inset: 0; z-index: 450; pointer-events: none; }

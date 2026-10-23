@@ -10,7 +10,7 @@ const defaults: LayerStyle = {
   fill: 'black', stroke: 'none', fillOpacity: '1', strokeOpacity: '1', strokeWidth: '1',
   vectorEffect: 'none', strokeDasharray: 'none', strokeDashoffset: '0', strokeLinejoin: 'miter',
   strokeLinecap: 'butt', fillRule: 'nonzero', paintOrder: 'normal', pointerEvents: 'auto',
-  cursor: 'auto', fontFamily: '"LXGW WenKai", "KaiTi", serif', fontStyle: 'normal',
+  cursor: 'auto', fontFamily: '"LXGW WenKai Mono", monospace', fontStyle: 'normal',
   fontWeight: '400', fontSize: '16px', letterSpacing: '0px', textAnchor: 'start',
   dominantBaseline: 'auto', opacity: '1', visibility: 'visible', display: 'inline',
   transform: 'none', color: '#2b2622',

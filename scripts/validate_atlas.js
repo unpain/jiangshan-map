@@ -3301,11 +3301,11 @@ function main() {
     }
 
     // WenKai ships its complete character set locally, replacing the remote subset.
-    const font = fs.readFileSync(path.join(ROOT, 'assets/fonts/LXGWWenKai-Regular.woff2'));
+    const font = fs.readFileSync(path.join(ROOT, 'assets/fonts/LXGWWenKaiMono-Regular.woff2'));
     assert.strictEqual(font.toString('ascii', 0, 4), 'wOF2', 'Local WenKai must be a WOFF2 font');
     assert.strictEqual(font.readUInt32BE(8), font.length, 'Local WenKai font must not be truncated');
-    assert(styleCss.includes("font-family: 'LXGW WenKai'") &&
-      styleCss.includes("url('../assets/fonts/LXGWWenKai-Regular.woff2')"),
+    assert(styleCss.includes("font-family: 'LXGW WenKai Mono'") &&
+      styleCss.includes("url('../assets/fonts/LXGWWenKaiMono-Regular.woff2')"),
       'Shared styles must load the bundled WenKai font');
     const svelteHtml = fs.readFileSync(path.join(ROOT, 'svelte.html'), 'utf8');
     assert(![indexHtml, svelteHtml].some(html => html.includes('fonts.googleapis.com')),

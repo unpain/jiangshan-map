@@ -188,7 +188,7 @@ npm run profile         # 真实鼠标滚轮性能测试
 
 所有地图对象都是 `src/atlas/layers/` 中的 Leaflet 图层，由有序图层组管理。地图文字、城市、关隘、事件、人物轨迹和挑战标记由 `src/atlas/canvas/` 中的自定义 Canvas 图层直接绘制。标注的路径、文字度量、样式和命中区域缓存为绘制指令，镜头变化通过 `requestAnimationFrame` 合并更新；绘制帧不读取地图 DOM 布局，不复制文字位图。缩放过程中逐帧更新字号、标签避让和地理描边，停止滚动后不再额外重排；纯平移复用已有文字布局。两层画布使用同一帧的镜头位置，避免标注和疆域错位。
 
-隐藏 SVG、DOM 选择器、计算样式采样和 MutationObserver 已全部删除。地图配色、字号、线型和响应式状态由 TypeScript 绘制配置管理，图层变化直接触发重绘；点击、悬停由 Canvas 命中检测交给对应的 Leaflet 地图对象。按钮小图标仍用 SVG。界面与地图标注统一使用本地托管的霞鹜文楷（LXGW WenKai v1.530，WOFF2），字体来源及 OFL 授权见 `assets/fonts/`；所有界面控件采用直角。没有额外在线底图请求；时间轴、搜索和分享坐标保持兼容。Leaflet 许可证保留在 assets/vendor/leaflet/LICENSE。
+隐藏 SVG、DOM 选择器、计算样式采样和 MutationObserver 已全部删除。地图配色、字号、线型和响应式状态由 TypeScript 绘制配置管理，图层变化直接触发重绘；点击、悬停由 Canvas 命中检测交给对应的 Leaflet 地图对象。按钮小图标仍用 SVG。界面与地图标注统一使用本地托管的霞鹜文楷等宽版（LXGW WenKai Mono v1.530，WOFF2），字体来源及 OFL 授权见 `assets/fonts/`；所有界面控件采用直角。没有额外在线底图请求；时间轴、搜索和分享坐标保持兼容。Leaflet 许可证保留在 assets/vendor/leaflet/LICENSE。
 
 数据校验运行 `npm test`。启动开发服务后，运行 `npm run test:e2e`，覆盖地图、Vue / Svelte 生命周期和 Canvas 标注的实际点击、图层开关、Leaflet 图层移除与重新挂载、绘制配置更新、地图无 SVG 节点、双语、移动端寻址及连续平移；可用 `ATLAS_URL` 和 `ATLAS_BROWSER` 调整地址与浏览器。性能回归运行 `npm run profile`：固定 1440×1000、DPR 2、明代 1415 年，发送 32 次真实滚轮事件（间隔 70ms），输出帧间隔、长任务、绘制次数和图层偏移，并检查滚动期间持续更新文字布局、停止后文字位置和显隐状态不再变化。帧间隔是本机测试结果，不代表所有设备的实际帧率。
 

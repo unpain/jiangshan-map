@@ -47,7 +47,7 @@ const ready = page => page.waitForFunction(() => window.atlasApp?.mapView?.visib
     await ready(page);
     await page.evaluate(() => document.fonts.ready);
     assert(await page.evaluate(() => [...document.fonts].some(font =>
-      font.family.includes('LXGW WenKai') && font.status === 'loaded')),
+      font.family.includes('LXGW WenKai Mono') && font.status === 'loaded')),
       'The production entry must load its bundled WenKai font');
     assert.equal(await page.evaluate(() => atlasApp.year), 1415);
     assert.equal(await page.locator('.leaflet-container').count(), 1);
