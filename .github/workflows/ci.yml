@@ -1,10 +1,14 @@
-name: Atlas Integrity CI
+name: Atlas CI and GitHub Pages
 
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   validate:
@@ -23,7 +27,7 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Typecheck and build Vue application
+      - name: Typecheck and build Vue and Svelte applications
         run: npm run build
 
       - name: Run Atlas Validation Suite
@@ -43,3 +47,29 @@ jobs:
         env:
           ATLAS_BROWSER: chromium
           ATLAS_URL: http://127.0.0.1:8765
+          ATLAS_OFFLINE: '1'
+
+      - name: Upload verified site
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: dist
+
+  deploy:
+    name: Deploy GitHub Pages
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs: validate
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    concurrency:
+      group: github-pages
+      cancel-in-progress: false
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy verified site
+        id: deployment
+        uses: actions/deploy-pages@v5

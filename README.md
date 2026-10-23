@@ -153,6 +153,8 @@ In browser automation environments (Playwright / WebMCP), call `window.atlasAPI`
 
 ## Run Locally
 
+GitHub Pages: [Vue](https://unpain.github.io/jiangshan-map/) · [Svelte](https://unpain.github.io/jiangshan-map/svelte.html). The `Atlas CI and GitHub Pages` workflow publishes `dist/` after type checks, data validation and browser regressions pass on `main`. Pull requests run checks without deploying; the workflow also supports manual runs.
+
 Stack: Vue 3 and Svelte 5 entries sharing TypeScript + Vite + Leaflet. Requires Node.js 22.12+; npm and Bun are supported.
 
 ```bash

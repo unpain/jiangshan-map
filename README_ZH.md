@@ -154,6 +154,8 @@ python3 skills/jiangshan-atlas/scripts/jiangshan.py --year 1079,1080,1094,1097 -
 
 ## 本地运行
 
+GitHub Pages：[Vue 版](https://unpain.github.io/jiangshan-map/) · [Svelte 版](https://unpain.github.io/jiangshan-map/svelte.html)。`Atlas CI and GitHub Pages` 工作流在 `main` 分支通过类型检查、数据校验和浏览器回归后自动发布 `dist/`；PR 只检查、不发布，也支持手动触发部署。
+
 技术栈：Vue 3 / Svelte 5 双入口，共用 TypeScript + Vite + Leaflet。需要 Node.js 22.12+，可使用 npm 或 Bun。
 
 ```bash
