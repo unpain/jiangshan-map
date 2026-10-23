@@ -9,6 +9,9 @@ const ready = page => page.waitForFunction(() => window.atlasApp?.mapView?.visib
   const browser = await chromium.launch({ headless: true, ...(channel === 'chromium' ? {} : { channel }) });
   try {
     const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+    if (process.env.ATLAS_OFFLINE === '1') {
+      await page.route('**/*', route => new URL(route.request().url()).origin === new URL(url).origin ? route.continue() : route.abort());
+    }
     const errors = [];
     page.on('pageerror', error => errors.push(error.message));
     // Hold the entry module to expose the exact HTML-only first paint. Critical
@@ -17,7 +20,7 @@ const ready = page => page.waitForFunction(() => window.atlasApp?.mapView?.visib
     const entryGate = new Promise(resolve => { releaseEntry = resolve; });
     let entryRequested;
     const requestSeen = new Promise(resolve => { entryRequested = resolve; });
-    await page.route(/\/(?:src\/main\.ts|assets\/index-[^/]+\.js)$/, async route => {
+    await page.route(/\/(?:src\/main\.ts|assets\/index-[^/]+\.js)(?:\?.*)?$/, async route => {
       entryRequested();
       await entryGate;
       await route.continue();
@@ -89,6 +92,8 @@ const ready = page => page.waitForFunction(() => window.atlasApp?.mapView?.visib
       await page.waitForTimeout(700);
       assert.equal(await page.locator('.leaflet-container').count(), 1);
       assert.equal(await page.locator('.atlas-canvas').count(), 1);
+      assert.equal(await page.locator('.atlas-annotations').count(), 1);
+      assert.equal(await page.evaluate(() => oldAtlas.mapView.annotations.items.length), 0);
       const oldYear = await page.evaluate(() => window.oldAtlas.year);
       await page.locator('#inp-year').focus();
       await page.keyboard.press('Tab');
@@ -97,6 +102,9 @@ const ready = page => page.waitForFunction(() => window.atlasApp?.mapView?.visib
     }
 
     const failed = await browser.newPage();
+    if (process.env.ATLAS_OFFLINE === '1') {
+      await failed.route('**/*', route => new URL(route.request().url()).origin === new URL(url).origin ? route.continue() : route.abort());
+    }
     failed.on('pageerror', error => errors.push(error.message));
     let abortOnce = true;
     await failed.route('**/js/map_data.js*', route => {

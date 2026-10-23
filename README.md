@@ -171,9 +171,13 @@ npm run test:e2e         # Browser regression against a running dev/preview serv
 npm run profile         # Native mouse-wheel benchmark
 ```
 
-Deploy `dist/` to a static host, including under a subdirectory. Serving the source root directly no longer runs the app. Existing query links and `window.atlasAPI` remain compatible. Browser checks use Edge by default; alternatively run `npx playwright install chromium` and set `ATLAS_BROWSER=chromium`. Set `ATLAS_URL` for another server and `ATLAS_PYTHON` for a Python executable.
+Deploy `dist/` to a static host, including under a subdirectory. Serving the source root directly no longer runs the app. Existing query links and `window.atlasAPI` remain compatible. Browser checks use Edge by default; alternatively run `npx playwright install chromium` and set `ATLAS_BROWSER=chromium`. Set `ATLAS_URL` for another server and `ATLAS_PYTHON` for a Python executable. Use `ATLAS_OFFLINE=1` to keep browser tests and profiling independent of remote fonts and analytics.
 
 Vue components live in `src/components/`; `src/composables/useAtlas.ts` owns startup, commands and teardown. The Leaflet renderer, projection, resource scope and loading boundary are TypeScript modules in `src/atlas/`. Historical domain rendering remains in `controller.js`, with a typed `.d.ts` interface. Generated data stays in `js/` for compatibility with existing tools. Map instances and large datasets stay outside deep Vue reactivity.
+
+All map features are Leaflet layers in `src/atlas/layers/`, organized in ordered layer groups. Geographic paths, text, cities, events, routes and quiz markers are painted by custom Canvas rendering in `src/atlas/canvas/` and `leaflet-map.ts`. The hidden SVG tree, DOM selectors, computed CSS sampling and mutation observer have been removed. Typed cartographic paint rules preserve the palette, typography, line styles and responsive states. Feature changes explicitly invalidate the display lists; zoom frames update typography, label collision placement and geographic strokes together; pure pans reuse the display list. Both Canvas surfaces follow the same camera frame, with no extra label reflow when scrolling stops. Toolbar icons still use SVG.
+
+The browser suite also checks city/event/route clicks, layer toggles, native Leaflet removal and remounting, explicit paint changes, absence of map SVG nodes, locale updates, touch quiz input and layout-free pan frames. The wheel profile checks continuous label layout during zoom and unchanged placement after scrolling stops, and reports display-list rebuilds, layer drift and frame timings.
 
 ---
 

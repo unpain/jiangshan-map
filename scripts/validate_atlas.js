@@ -11,6 +11,7 @@ const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
 
+const { mapStyle } = require('./map_style.cjs');
 const ROOT = path.resolve(__dirname, '..');
 const JS_DIR = path.join(ROOT, 'js');
 
@@ -1052,7 +1053,7 @@ function main() {
 
   // CUJ 9o: First-Level Administrative Boundary Deduplication, Search Deduplication & Bilingual Polish
   assert(
-    cssSrc.includes('.region-shape-casing') && cssSrc.includes('.region-shape'),
+    mapStyle('region-shape-casing').strokeWidth === '3' && mapStyle('region-shape').strokeWidth === '1.45',
     'css/style.css must define both .region-shape-casing and .region-shape'
   );
   ctrl.projector.toScreen = (lng, lat) => [(lng - 66) * 13.15, (55 - lat) * 17.07];
@@ -1194,19 +1195,12 @@ function main() {
 
   // CUJ 9p: Territorial Ghost Diff (#grp-ghost-diff) Across Main, Protectorate, Rival & Cross-Dynasty Transitions
   const ghostNodes = [];
-  ctrl.grpGhostDiff = {
-    get innerHTML() {
-      return '';
-    },
-    set innerHTML(_v) {
-      ghostNodes.length = 0;
-    },
-  };
+  ctrl.grpGhostDiff = { clearLayers() { ghostNodes.length = 0; } };
   ctrl._id = () => null;
-  ctrl.projector.shapeToSvgPath = (shape) =>
+  ctrl.projector.shapeToPath = (shape) =>
     shape && shape.coordinates ? `M${JSON.stringify(shape.coordinates).length}` : '';
-  ctrl._svgNode = (tag, attrs, parent) => {
-    const node = { tag, attrs, dataset: {} };
+  ctrl._mapElement = (tag, attrs, parent) => {
+    const node = { tag, attrs, metadata: {} };
     if (parent === ctrl.grpGhostDiff) ghostNodes.push(node);
     return node;
   };
@@ -1218,7 +1212,7 @@ function main() {
   ctrl._renderGhostDiff(tangPeakSnap, 'fade');
   assert(
     ghostNodes.length > 0 &&
-      ghostNodes.some((n) => n.dataset.polityRole === 'protectorate' || n.dataset.polityRole === 'main'),
+      ghostNodes.some((n) => n.metadata.polityRole === 'protectorate' || n.metadata.polityRole === 'main'),
     `Expected _renderGhostDiff from Tang peak to Late Tang to emit ghost paths for changed main/protectorate polities, got ${JSON.stringify(ghostNodes)}`
   );
   if (ctrl.ghostTimer) {
@@ -1234,8 +1228,8 @@ function main() {
   ctrl.lastRenderedSnap = qinSnap;
   ctrl._renderGhostDiff(zgSnap, 'fade');
   assert(
-    ghostNodes.length >= 2 && ghostNodes.some((n) => n.dataset.polityRole === 'rival'),
-    `Expected _renderGhostDiff from Warring States to Qin unification to include annexed rival states, got ${JSON.stringify(ghostNodes.map((n) => n.dataset))}`
+    ghostNodes.length >= 2 && ghostNodes.some((n) => n.metadata.polityRole === 'rival'),
+    `Expected _renderGhostDiff from Warring States to Qin unification to include annexed rival states, got ${JSON.stringify(ghostNodes.map((n) => n.metadata))}`
   );
   if (ctrl.ghostTimer) {
     clearTimeout(ctrl.ghostTimer);
@@ -1332,7 +1326,7 @@ function main() {
       appCode.includes('_renderCustomRouteCard') &&
       appCode.includes('selectCustomRouteStop') &&
       appCode.includes('_syncChallengeScrubberState') &&
-      cssSrc.includes('.prefecture-shape.is-traced') &&
+      mapStyle('prefecture-shape is-traced').strokeWidth === '1.45' &&
       cssSrc.includes('#scrubber-dock.is-challenge-locked') &&
       cssSrc.includes('#journey-card.is-custom-route') &&
       cssSrc.includes('#act-github-star .star-mark') &&
@@ -1341,24 +1335,24 @@ function main() {
     'app.js & style.css must implement persistent trace onboarding (#2), traced prefecture highlight (#5), custom route control card (#3), challenge scrubber lock (#6), and icon-only mobile GitHub link'
   );
   const mockPrefNodes = [
-    { dataset: { prefTitle: '黄州' }, classList: { _s: new Set(), add(c) { this._s.add(c); }, remove(c) { this._s.delete(c); }, contains(c) { return this._s.has(c); } } },
-    { dataset: { prefTitle: '江州' }, classList: { _s: new Set(), add(c) { this._s.add(c); }, remove(c) { this._s.delete(c); }, contains(c) { return this._s.has(c); } } },
+    { metadata: { prefTitle: '黄州' }, tags: { _s: new Set(), add(c) { this._s.add(c); }, remove(c) { this._s.delete(c); }, contains(c) { return this._s.has(c); } } },
+    { metadata: { prefTitle: '江州' }, tags: { _s: new Set(), add(c) { this._s.add(c); }, remove(c) { this._s.delete(c); }, contains(c) { return this._s.has(c); } } },
   ];
   ctrl.grpPrefectures = {
-    querySelectorAll: () => mockPrefNodes,
+    findAll: () => mockPrefNodes,
   };
   const song1082Snap = snapshots[ctrl._resolveSnapKey(bsDyn, 1082)];
   ctrl.lastRenderedSnap = song1082Snap;
   ctrl.activeTrace = [114.88, 30.45]; // Huangzhou
   ctrl._syncTracedPrefecture();
   assert(
-    mockPrefNodes[0].classList.contains('is-traced') && !mockPrefNodes[1].classList.contains('is-traced'),
+    mockPrefNodes[0].tags.contains('is-traced') && !mockPrefNodes[1].tags.contains('is-traced'),
     'Expected _syncTracedPrefecture to mark containing prefecture (黄州) with .is-traced'
   );
   ctrl.activeTrace = null;
   ctrl._syncTracedPrefecture();
   assert(
-    !mockPrefNodes[0].classList.contains('is-traced'),
+    !mockPrefNodes[0].tags.contains('is-traced'),
     'Expected _syncTracedPrefecture to clear .is-traced when activeTrace is null'
   );
 
@@ -1454,7 +1448,7 @@ function main() {
     classList: { remove() {}, add() {}, contains() { return false; } },
     querySelector: () => null,
   };
-  ctrl.grpMilestones = { querySelectorAll: () => [], classList: { contains: () => false } };
+  ctrl.grpMilestones = { findAll: () => [], tags: { contains: () => false } };
   ctrl._positionMilestoneBalloon = () => {};
   ctrl._syncMilestoneSelection = () => {};
   ctrl._highlightCurrentMilestone = () => {};
@@ -1701,7 +1695,7 @@ function main() {
 
   // CUJ 22: Complete English Dictionary Coverage, Boot Seed Parity & Non-Zero Oriented Fill Rule Guard
   assert(
-    cssSrc.includes('.polity-shape') && /\.polity-shape\s*\{[\s\S]*?fill-rule:\s*nonzero;/m.test(cssSrc),
+    mapStyle('polity-shape').fillRule === 'nonzero',
     'style.css .polity-shape must explicitly set fill-rule: nonzero with opposite outer/hole ring winding so overlapping MultiPolygon sub-polygons never cancel out'
   );
   const sampleRing = [[100, 30], [110, 30], [110, 40], [100, 40], [100, 30]];
@@ -2002,9 +1996,9 @@ function main() {
     if (id === 'genealogy-timeline') return mockListEl;
     return null;
   };
-  ctrl.grpGenealogy = { innerHTML: '' };
+  ctrl.grpGenealogy = { clearLayers() {} };
   ctrl._dismissTraceOnboarding = () => {};
-  ctrl._rescaleSvgTypography = () => {};
+  ctrl._layoutMapLabels = () => {};
   ctrl._syncTracedPrefecture = () => {};
   ctrl._fullSnapshotsLoaded = true;
   ctrl.year = 2026;
@@ -2135,8 +2129,8 @@ function main() {
     }
   }
   assert(
-    styleCss.includes('.settlement-node.is-tier2.is-trace-city') &&
-      appCode.includes("node.classList.toggle('is-trace-city', isTraced)"),
+    mapStyle('settlement-node is-tier2 is-trace-city').display === 'block' &&
+      appCode.includes("node.tags.toggle('is-trace-city', isTraced)"),
     'style.css and app.js must keep traced Tier-2 cities visible (.is-trace-city)'
   );
   ctrl.dynastyIdx = 17;
@@ -2165,22 +2159,20 @@ function main() {
     '_buildProvinceBoundaryPaths must return cached boundary object on subsequent calls'
   );
   assert(
-    styleCss.includes('.province-boundary-casing') &&
-      styleCss.includes('.province-boundary-interior') &&
-      styleCss.includes('.province-boundary-outer') &&
-      styleCss.includes('#atlas-svg[data-dynasty="prc"] .province-boundary-interior') &&
-      styleCss.includes('#atlas-svg[data-dynasty="prc"] .province-boundary-outer') &&
-      styleCss.includes('#grp-provinces.is-hidden .province-boundary-interior') &&
-      appCode.includes('this.svg.dataset.dynasty = dynasty.key'),
+    mapStyle('province-boundary-casing').strokeWidth === '2.1' &&
+      mapStyle('province-boundary-interior', {dynasty: 'prc'}).strokeWidth === '1.42' &&
+      mapStyle('province-boundary-outer', {dynasty: 'prc'}).strokeWidth === '1.85' &&
+      mapStyle('province-boundary-interior', {group: 'provinces', groupTags: ['is-hidden']}).display === 'none' &&
+      appCode.includes('this.scene.metadata.dynasty = dynasty.key'),
     'style.css and app.js must style cased modern province boundaries across historical and PRC eras and hide them when #grp-provinces.is-hidden is active'
   );
 
   // 23d. Verify hovering in regions without secondary prefectures (e.g. Western Sichuan / 剑南道 in Tang) does not highlight the entire polity, non-PRC eras do not hover-highlight modern provinces, and canonical place registry unifies openGenealogyAt & _inspectCoord
   assert(
-    !/\.polity-shape:hover\b/.test(styleCss) &&
-      !/^\.province-shape:not\(\.maritime-dash\):hover\b/m.test(styleCss) &&
-      styleCss.includes('#atlas-svg[data-dynasty="prc"] .province-shape:not(.maritime-dash):hover') &&
-      styleCss.includes('#grp-polities.has-polity-focus .polity-shape.is-focused') &&
+    mapStyle('polity-shape is-canvas-hovered').fill === mapStyle('polity-shape').fill &&
+      mapStyle('province-shape is-canvas-hovered').fill === mapStyle('province-shape').fill &&
+      mapStyle('province-shape is-canvas-hovered', {dynasty: 'prc'}).fill !== mapStyle('province-shape', {dynasty: 'prc'}).fill &&
+      mapStyle('polity-shape is-focused', {group: 'polities', groupTags: ['has-polity-focus']}).fillOpacity === '0.56' &&
       appCode.includes('this.lastRenderedSnap.regions.find') &&
       appCode.includes('_getCanonicalPlaces()') &&
       appCode.includes('_resolveEraPlaceAt('),
@@ -2377,8 +2369,8 @@ function main() {
     'snapshots.neighbors and bootSnaps.neighbors must not list 台湾地区 as a foreign neighbor'
   );
   assert(
-    /\.province-shape\.maritime-dash\s*\{[\s\S]*?stroke:\s*rgba\(/m.test(styleCss) &&
-      /\.province-shape\.maritime-dash\s*\{[\s\S]*?vector-effect:\s*non-scaling-stroke;/m.test(styleCss),
+    mapStyle('province-shape maritime-dash').stroke.startsWith('rgba(') &&
+      mapStyle('province-shape maritime-dash').vectorEffect === 'non-scaling-stroke',
     'css/style.css .province-shape.maritime-dash must reinforce Ten-Dash Line (100000_JD) with explicit non-scaling stroke'
   );
   const complianceCheckPts = [
@@ -2738,9 +2730,9 @@ function main() {
       indexHtml.includes('id="act-expand-genealogy"') &&
       styleCss.includes('.genealogy-body {') &&
       styleCss.includes('.genealogy-body .genealogy-list {') &&
-      styleCss.includes('.journey-track-thread {') &&
-      styleCss.includes('.journey-track-focus {') &&
-      styleCss.includes('.journey-chevron {') &&
+      mapStyle('journey-track-thread').strokeWidth !== '1' &&
+      mapStyle('journey-track-focus').strokeWidth !== '1' &&
+      mapStyle('journey-chevron').strokeWidth !== '1' &&
       styleCss.includes('.person-ev-quote {') &&
       !styleCss.includes('journeyDashFlow') &&
       !styleCss.includes('max-height: 4.1em;') &&
@@ -2751,20 +2743,22 @@ function main() {
     const prevWinW = sandbox.window.innerWidth;
     const prevWinH = sandbox.window.innerHeight;
     const prevAnimCam = ctrl._animateCameraTo;
-    const prevSvg = ctrl.svg;
+    const prevSvg = ctrl.scene;
+    const prevMapView = ctrl.mapView;
     let capturedCam = null;
     sandbox.window.innerWidth = 390;
     sandbox.window.innerHeight = 664;
-    ctrl.svg = {
-      getBoundingClientRect: () => ({ top: 45, bottom: 584, left: 0, right: 390, width: 390, height: 539 }),
-      querySelectorAll: () => [],
-      classList: { add() {}, remove() {}, toggle() {}, contains: () => false },
-      dataset: {},
+    ctrl.scene = {
+      getScreenBounds: () => ({ top: 45, bottom: 584, left: 0, right: 390, width: 390, height: 539 }),
+      findAll: () => [],
+      tags: { add() {}, remove() {}, toggle() {}, contains: () => false },
+      metadata: {},
     };
     const mockVfMobile = {
       getBoundingClientRect: () => ({ top: 45, bottom: 584, left: 0, right: 390, width: 390, height: 539 }),
       classList: { add() {}, remove() {}, toggle() {}, contains: () => false },
     };
+    ctrl.mapView = { container: mockVfMobile };
     let sheetExpandedMock = false;
     const mockGenCardMobile = {
       getBoundingClientRect: () =>
@@ -2831,7 +2825,8 @@ function main() {
     ctrl.closeGenealogyCard();
     ctrl._id = origIdMobile;
     ctrl._animateCameraTo = prevAnimCam;
-    ctrl.svg = prevSvg;
+    ctrl.scene = prevSvg;
+    ctrl.mapView = prevMapView;
     sandbox.window.innerWidth = prevWinW;
     sandbox.window.innerHeight = prevWinH;
     assert.strictEqual(
@@ -2996,16 +2991,16 @@ function main() {
     }
 
     const capturedNodes = [];
-    ctrl._svgNode = (tag, attrs) => {
+    ctrl._mapElement = (tag, attrs) => {
       const n = {
         tag,
         attrs,
-        dataset: {},
-        textContent: '',
-        classList: { add() {}, remove() {}, contains: () => false },
-        setAttribute() {},
-        getAttribute: () => null,
-        appendChild() {},
+        metadata: {},
+        label: '',
+        tags: { add() {}, remove() {}, contains: () => false },
+        set() {},
+        get: () => null,
+        addLayer() {},
       };
       capturedNodes.push({ tag, attrs, n });
       return n;
@@ -3042,6 +3037,12 @@ function main() {
       };
       return el;
     };
+    const makeMockLayer = () => ({
+      label: '', metadata: {}, paint: {}, children: [],
+      clearLayers() { this.children.length = 0; }, addLayer(child) { this.children.push(child); },
+      set() {}, get: () => null, find: () => null, findAll: () => [],
+      tags: { add() {}, remove() {}, toggle() {}, contains: () => false },
+    });
     const mockIds = new Map();
     const origId = ctrl._id.bind(ctrl);
     ctrl._id = (id) => {
@@ -3050,13 +3051,13 @@ function main() {
     };
     const origDoc = sandbox.document;
     sandbox.document = { createElement: () => makeMockDomEl() };
-    ctrl.grpPolities = makeMockDomEl();
-    ctrl.grpPrefectures = makeMockDomEl();
-    ctrl.grpProvNames = makeMockDomEl();
+    ctrl.grpPolities = makeMockLayer();
+    ctrl.grpPrefectures = makeMockLayer();
+    ctrl.grpProvNames = makeMockLayer();
     ctrl.mapKey = makeMockDomEl();
-    ctrl.svg = makeMockDomEl();
+    ctrl.scene = makeMockLayer();
     ctrl._renderLegendBox = () => {};
-    ctrl._rescaleSvgTypography = () => {};
+    ctrl._layoutMapLabels = () => {};
 
     const nbDynObj = dynasties.find((d) => d.key === 'nanbei');
     ctrl.locale = 'zh';
@@ -3065,7 +3066,7 @@ function main() {
     ctrl._renderPolitiesAndPrefectures(nbDynObj, snapshots.s_nanbei_b);
     const zhQiaoCaps = capturedNodes
       .filter((x) => x.attrs && String(x.attrs.class || '').includes('is-qiaozhou'))
-      .map((x) => x.n.textContent);
+      .map((x) => x.n.label);
     assert(
       zhQiaoCaps.includes('南徐州·侨') && zhQiaoCaps.includes('雍州·侨') && zhQiaoCaps.includes('青冀二州·侨'),
       `Expected on-map ·侨 badges in ZH at 494 CE, got ${JSON.stringify(zhQiaoCaps)}`
@@ -3083,7 +3084,7 @@ function main() {
     ctrl._renderPolitiesAndPrefectures(nbDynObj, snapshots.s_nanbei_b);
     const enQiaoCaps = capturedNodes
       .filter((x) => x.attrs && String(x.attrs.class || '').includes('is-qiaozhou'))
-      .map((x) => x.n.textContent);
+      .map((x) => x.n.label);
     assert(
       enQiaoCaps.includes('Nanxu Zhou (Emigre)') && enQiaoCaps.includes('Yong Zhou (Emigre)'),
       `Expected on-map (Emigre) badges in EN at 494 CE, got ${JSON.stringify(enQiaoCaps)}`
@@ -3562,7 +3563,7 @@ function main() {
         classList: { remove() {}, add() {}, contains: () => false },
         querySelector: () => null,
       },
-      grpMilestones: { querySelectorAll: () => [], classList: { contains: () => false } },
+      grpMilestones: { findAll: () => [], tags: { contains: () => false } },
       _positionMilestoneBalloon: () => {},
       _highlightCurrentMilestone: () => {},
     });
@@ -3713,9 +3714,9 @@ function main() {
       challenge: { variant: 'locate', deck: [], index: 0, score: 0, answered: false },
       activeMilestone: { dynastyKey: 'tang', milestone: { year: 755, coord: [108.94, 34.26] }, isAuto: true },
       milestoneBalloon: { classList: makeCls() },
-      grpGenealogy: { innerHTML: '<g/>' },
-      grpSettlements: { querySelectorAll: () => [] },
-      grpPrefectures: { querySelectorAll: () => [] },
+      grpGenealogy: { clearLayers() {} },
+      grpSettlements: { findAll: () => [] },
+      grpPrefectures: { findAll: () => [] },
       closeGenealogyCard: proto.closeGenealogyCard,
       _clearActiveTrace: proto._clearActiveTrace,
       _clearActivePerson: proto._clearActivePerson,
@@ -3794,17 +3795,19 @@ function main() {
   {
     const proto = ControllerClass.prototype;
     assert(
-      /\.polity-caption\.neighbor\s*\{[\s\S]*?font-size:\s*14px;[\s\S]*?font-weight:\s*700;[\s\S]*?fill:\s*#5a2d18;/m.test(
-        styleCss
-      ),
+      mapStyle('polity-caption neighbor').fontSize === '14px' && mapStyle('polity-caption neighbor').fontWeight === '700' && mapStyle('polity-caption neighbor').fill === '#5a2d18',
       'css/style.css .polity-caption.neighbor must use 14px bold (#5a2d18) to distinguish ancient kingdoms from modern country watermarks'
     );
     assert(
-      /\.neighbor-caption\s*\{[\s\S]*?font-size:\s*8px;[\s\S]*?font-weight:\s*400;[\s\S]*?fill:\s*#686e73;/m.test(
-        styleCss
-      ),
+      mapStyle('neighbor-caption').fontSize === '8px' && mapStyle('neighbor-caption').fontWeight === '400' && mapStyle('neighbor-caption').fill === '#686e73',
       'css/style.css .neighbor-caption must use 8px regular (#686e73) as a subtle background country watermark'
     );
+
+    assert.strictEqual(mapStyle('polity-caption', {locale: 'en'}).fontSize, '13px');
+    assert.strictEqual(mapStyle('region-caption', {locale: 'en'}).fontSize, '7.5px');
+    assert.strictEqual(mapStyle('region-caption', {context: {hasActiveChallenge: true, isChallengeAnswered: false}}).opacity, '0');
+    assert.notStrictEqual(mapStyle('region-caption', {context: {hasActiveChallenge: true, isChallengeAnswered: true}}).opacity, '0');
+    assert.strictEqual(mapStyle('error-line').strokeDasharray, '4 3');
 
     const makeCls = (initial = []) => {
       const s = new Set(initial);
@@ -3820,7 +3823,7 @@ function main() {
         contains: (x) => s.has(x),
       };
     };
-    const makeCaptionNode = (clsList, text, x, y, dataset = {}) => {
+    const makeCaptionNode = (clsList, text, x, y, metadata = {}) => {
       const attrs = {
         'data-x': String(x),
         'data-y': String(y),
@@ -3828,11 +3831,11 @@ function main() {
         'data-base-y': String(y),
       };
       return {
-        classList: makeCls(clsList),
-        textContent: text,
-        dataset,
-        getAttribute: (k) => (k in attrs ? attrs[k] : null),
-        setAttribute: (k, v) => {
+        tags: makeCls(clsList),
+        label: text,
+        metadata,
+        get: (k) => (k in attrs ? attrs[k] : null),
+        set: (k, v) => {
           attrs[k] = String(v);
         },
       };
@@ -3860,46 +3863,46 @@ function main() {
       camera: { x: 200, y: 200, w: 444, h: 311, zoom: 2.25 },
       projector: ctrl.projector,
       _estimateLocalTextWidth: proto._estimateLocalTextWidth,
-      svg: {
-        classList: makeCls(),
-        querySelectorAll: () => [],
+      scene: {
+        tags: makeCls(),
+        findAll: () => [],
       },
-      grpSettlements: { classList: makeCls(), querySelectorAll: () => [] },
-      grpPrefectures: { classList: makeCls(), querySelectorAll: () => [] },
-      grpCorridors: { classList: makeCls(), querySelectorAll: () => [] },
-      grpMilestones: { classList: makeCls(), querySelectorAll: () => [] },
+      grpSettlements: { tags: makeCls(), findAll: () => [] },
+      grpPrefectures: { tags: makeCls(), findAll: () => [] },
+      grpCorridors: { tags: makeCls(), findAll: () => [] },
+      grpMilestones: { tags: makeCls(), findAll: () => [] },
       grpPolities: {
-        classList: makeCls(),
-        querySelectorAll: (sel) =>
-          sel === '.polity-caption' ? [funanNode, joseonPolNode] : [],
+        tags: makeCls(),
+        findAll: (sel) =>
+          sel.tags?.includes('polity-caption') ? [funanNode, joseonPolNode] : [],
       },
       grpNeighbors: {
-        querySelectorAll: (sel) =>
-          sel === '.neighbor-caption' ? [cambodiaWatermark, joseonWatermark] : [],
+        findAll: (sel) =>
+          sel.tags?.includes('neighbor-caption') ? [cambodiaWatermark, joseonWatermark] : [],
       },
-      grpProvNames: { querySelectorAll: () => [] },
+      grpProvNames: { findAll: () => [] },
     };
 
-    proto._rescaleSvgTypography.call(mockCtrl);
+    proto._layoutMapLabels.call(mockCtrl);
 
     // 扶南 stays anchored while 柬埔寨 dodges vertically/horizontally away from 扶南
-    const finalFunanY = parseFloat(funanNode.getAttribute('data-y'));
-    const finalCambodiaY = parseFloat(cambodiaWatermark.getAttribute('data-y'));
+    const finalFunanY = parseFloat(funanNode.get('data-y'));
+    const finalCambodiaY = parseFloat(cambodiaWatermark.get('data-y'));
     assert(
       Math.abs(finalFunanY - fy) < 0.2,
       'Ancient neighbor polity 扶南 must remain anchored at its historical territory center'
     );
     assert(
-      !cambodiaWatermark.classList.contains('is-crowded-hidden') &&
+      !cambodiaWatermark.tags.contains('is-crowded-hidden') &&
         Math.hypot(
-          parseFloat(cambodiaWatermark.getAttribute('data-x')) - finalFunanY * 0 - fx,
+          parseFloat(cambodiaWatermark.get('data-x')) - finalFunanY * 0 - fx,
           finalCambodiaY - finalFunanY
         ) >= 9.0,
       `Modern watermark 柬埔寨 must dodge co-located ancient polity 扶南 (got dy=${(finalCambodiaY - finalFunanY).toFixed(1)})`
     );
     // Same-named modern watermark 朝鲜 hides when historical polity 朝鲜 is active
     assert(
-      joseonWatermark.classList.contains('is-crowded-hidden'),
+      joseonWatermark.tags.contains('is-crowded-hidden'),
       'Modern watermark 朝鲜 must hide when an active historical polity with the identical name (朝鲜) is displayed'
     );
   }

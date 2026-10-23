@@ -1,3 +1,5 @@
+import { createAtlasLayers } from './layers/scene';
+import { MapElement } from './layers/element';
 // Historical domain rendering remains an imperative module behind a typed Vue API.
 import { MercatorProjector } from './projector';
 import { LeafletAtlasMap } from './leaflet-map';
@@ -5,7 +7,7 @@ import { AtlasScope } from './scope';
 import { loadAtlasScript } from './data-loader';
 
 
-const SVG_NS = 'http://www.w3.org/2000/svg';
+
 const RAD_TO_DEG = 180 / Math.PI;
 const DEG_TO_RAD = Math.PI / 180;
 // Regime prefixes carried by era-span names, e.g. '北魏正光' = '北魏' + era '正光'.
@@ -164,8 +166,6 @@ export class HistoricalAtlasController {
     this.musicPlaying = false;
     this.musicAudio?.pause();
     if (this.musicAudio) { this.musicAudio.removeAttribute('src'); this.musicAudio.load(); }
-    // Restore Vue's SVG node to its original parent before Leaflet removes panes.
-    if (this.svg && this.mapView) this.mapView.container.parentElement?.appendChild(this.svg);
     this.mapView?.map.remove();
   }
 
@@ -354,16 +354,16 @@ export class HistoricalAtlasController {
     try {
       localStorage.setItem('jiangshan_seen_trace_hint', '1');
     } catch (_) {}
-    if (this.svg) {
-      this.svg.querySelectorAll('.cap-breath-ring, .cap-hint-tag').forEach((el) => el.remove());
-      this.svg
-        .querySelectorAll('.has-trace-hint')
-        .forEach((el) => el.classList.remove('has-trace-hint'));
+    if (this.scene) {
+      this.scene.findAll([{"tags":["cap-breath-ring"]},{"tags":["cap-hint-tag"]}]).forEach((el) => el.remove());
+      this.scene
+        .findAll({"tags":["has-trace-hint"]})
+        .forEach((el) => el.tags.remove('has-trace-hint'));
     }
   }
 
   _getViewportAspect() {
-    if (this.svg) {
+    if (this.scene) {
       const r = this._mapViewportRect();
       if (r.width > 40 && r.height > 40) {
         return Math.max(0.65, Math.min(1.45, r.height / r.width));
@@ -393,32 +393,14 @@ export class HistoricalAtlasController {
     return document.getElementById(id);
   }
 
-  _svgNode(tag, attrs = {}, parent = null) {
-    const node = document.createElementNS(SVG_NS, tag);
-    for (const [k, v] of Object.entries(attrs)) {
-      node.setAttribute(k, v);
-    }
-    if (parent) parent.appendChild(node);
-    if (this.mapView) this.mapView.capture(node);
+  _mapElement(kind, options = {}, parent = null) {
+    const node = new MapElement(kind, options);
+    if (parent) parent.addLayer(node);
     return node;
   }
 
   _bindDom() {
-    this.svg = this._id('atlas-svg');
-    this.grpTerrain = this._id('grp-terrain');
-    this.grpRivers = this._id('grp-rivers');
-    this.grpNeighbors = this._id('grp-neighbors');
-    this.grpProvinces = this._id('grp-provinces');
-    this.grpProvNames = this._id('grp-prov-names');
-    this.grpPolities = this._id('grp-polities');
-    this.grpPrefectures = this._id('grp-prefectures');
-    this.grpGhostDiff = this._id('grp-ghost-diff');
-    this.grpCorridors = this._id('grp-corridors');
-    this.grpJourney = this._id('grp-journey');
-    this.grpSettlements = this._id('grp-settlements');
-    this.grpMilestones = this._id('grp-milestones');
-    this.grpChallenge = this._id('grp-challenge');
-    this.grpGenealogy = this._id('grp-genealogy');
+    Object.assign(this, createAtlasLayers());
     this.hoverTip = this._id('hover-tip');
     this.mapKey = this._id('map-key');
     this.milestoneBalloon = this._id('milestone-balloon');
@@ -837,9 +819,9 @@ export class HistoricalAtlasController {
         this.locale === 'en' ? 'Historical era details' : '历史时期详情'
       );
     }
-    const atlasSvg = this._id('atlas-svg');
-    if (atlasSvg) {
-      atlasSvg.setAttribute(
+    const mapContainer = this._id('leaflet-map');
+    if (mapContainer) {
+      mapContainer.setAttribute(
         'aria-label',
         this.locale === 'en' ? 'Historical Atlas of China' : '中国历史地图'
       );
@@ -873,16 +855,16 @@ export class HistoricalAtlasController {
     }
     this._syncTogglePaneButton();
 
-    this.grpProvNames.querySelectorAll('.province-caption').forEach((node) => {
-      if (node.dataset.rawName) node.textContent = this.trTerm(node.dataset.rawName);
+    this.grpProvNames.findAll({"tags":["province-caption"]}).forEach((node) => {
+      if (node.metadata.rawName) node.label = this.trTerm(node.metadata.rawName);
     });
-    this.grpNeighbors.querySelectorAll('.neighbor-caption').forEach((node) => {
-      if (node.dataset.rawName) node.textContent = this.trTerm(node.dataset.rawName);
+    this.grpNeighbors.findAll({"tags":["neighbor-caption"]}).forEach((node) => {
+      if (node.metadata.rawName) node.label = this.trTerm(node.metadata.rawName);
     });
     if (this.grpRivers) {
-      this.grpRivers.querySelectorAll('.hydro-label').forEach((node) => {
-        node.textContent =
-          this.locale === 'en' ? node.dataset.en || '' : node.dataset.zh || '';
+      this.grpRivers.findAll({"tags":["hydro-label"]}).forEach((node) => {
+        node.label =
+          this.locale === 'en' ? node.metadata.en || '' : node.metadata.zh || '';
       });
     }
 
@@ -917,9 +899,9 @@ export class HistoricalAtlasController {
       this._renderCustomRoute(this.activeCustomRoute, this.camera.zoom);
     }
     if (this.challenge) {
-      this.grpSettlements.classList.add('is-hidden');
+      this.grpSettlements.tags.add('is-hidden');
       const chkM = this._id('chk-milestones');
-      this.grpMilestones.classList.toggle(
+      this.grpMilestones.tags.toggle(
         'is-hidden',
         !this.challenge.answered || Boolean(chkM && !chkM.checked)
       );
@@ -968,7 +950,7 @@ export class HistoricalAtlasController {
   _buildTerrainRivers() {
     if (!this.grpRivers || !this.hydroData) return;
     this.activeHydroMask = this._hydroMask(this.year);
-    this.grpRivers.innerHTML = '';
+    this.grpRivers.clearLayers();
 
     // 1. Render lakes first (underneath river inflows/outflows)
     for (const lk of this.hydroData.lakes || []) {
@@ -976,7 +958,7 @@ export class HistoricalAtlasController {
       const d = (lk.rings || []).map((r) => this.projector.ringToSvgPath(r)).join('');
       if (!d) continue;
       const lkCls = lk.rank <= 2 ? 'hydro-lake rank-major' : 'hydro-lake';
-      this._svgNode('path', { d, class: lkCls }, this.grpRivers);
+      this._mapElement('path', { d, class: lkCls }, this.grpRivers);
     }
 
     // 2. Render subtle parchment casing under trunk rivers (Yangtze, Yellow, Huai)
@@ -990,7 +972,7 @@ export class HistoricalAtlasController {
         }
       }
       if (!d) continue;
-      this._svgNode('path', { d, class: 'hydro-river-casing' }, this.grpRivers);
+      this._mapElement('path', { d, class: 'hydro-river-casing' }, this.grpRivers);
     }
 
     // 3. Render river strokes by rank hierarchy
@@ -1012,7 +994,7 @@ export class HistoricalAtlasController {
             : riv.rank <= 4
               ? 'rank-med'
               : 'rank-minor';
-      this._svgNode(
+      this._mapElement(
         'path',
         { d, class: `hydro-river ${rankCls}` },
         this.grpRivers
@@ -1030,7 +1012,7 @@ export class HistoricalAtlasController {
             ? 'is-lake'
             : 'is-river';
       const rot = lb.rot || 0;
-      const tNode = this._svgNode(
+      const tNode = this._mapElement(
         'text',
         {
           class: `hydro-label ${kindCls}`,
@@ -1043,18 +1025,18 @@ export class HistoricalAtlasController {
         },
         this.grpRivers
       );
-      tNode.textContent = this.locale === 'en' ? lb.en || '' : lb.zh || '';
+      tNode.label = this.locale === 'en' ? lb.en || '' : lb.zh || '';
     }
   }
 
   toggleTerrainMode(forceState) {
     this.terrainMode =
       forceState !== undefined ? Boolean(forceState) : !this.terrainMode;
-    if (this.svg) {
-      this.svg.classList.toggle('terrain-active', this.terrainMode);
+    if (this.scene) {
+      this.scene.tags.toggle('terrain-active', this.terrainMode);
     }
     if (this.grpTerrain) {
-      this.grpTerrain.classList.toggle('is-hidden', !this.terrainMode);
+      this.grpTerrain.tags.toggle('is-hidden', !this.terrainMode);
     }
     const chk = this._id('chk-terrain');
     if (chk) {
@@ -1155,7 +1137,7 @@ export class HistoricalAtlasController {
     const dashPaths = [];
     for (const prov of this.provinces) {
       const isDash = String(prov.code).includes('_JD');
-      const path = this._svgNode(
+      const path = this._mapElement(
         'path',
         {
           d: this.projector.multiRingsToSvgPath(prov.rings),
@@ -1166,43 +1148,43 @@ export class HistoricalAtlasController {
       if (isDash) {
         dashPaths.push(path);
       } else {
-        path.dataset.provTitle = prov.title;
+        path.metadata.provTitle = prov.title;
         const [cx, cy] = this.projector.toScreen(prov.hub[0], prov.hub[1]);
-        const lbl = this._svgNode(
+        const lbl = this._mapElement(
           'text',
           { x: cx.toFixed(1), y: cy.toFixed(1), class: 'province-caption' },
           this.grpProvNames
         );
         const rawShort = prov.title.replace(/(省|市|壮族自治区|回族自治区|维吾尔自治区|自治区|特别行政区)$/, '');
-        lbl.dataset.rawName = rawShort;
-        lbl.textContent = this.trTerm(rawShort);
+        lbl.metadata.rawName = rawShort;
+        lbl.label = this.trTerm(rawShort);
       }
     }
     const bounds = this._buildProvinceBoundaryPaths();
     if (bounds.combined) {
-      this._svgNode(
+      this._mapElement(
         'path',
         { d: bounds.combined, class: 'province-boundary-casing' },
         this.grpProvinces
       );
     }
     if (bounds.interior) {
-      this._svgNode(
+      this._mapElement(
         'path',
         { d: bounds.interior, class: 'province-boundary-interior' },
         this.grpProvinces
       );
     }
     if (bounds.outer) {
-      this._svgNode(
+      this._mapElement(
         'path',
         { d: bounds.outer, class: 'province-boundary-outer' },
         this.grpProvinces
       );
     }
     for (const dp of dashPaths) {
-      if (this.grpProvinces && this.grpProvinces.appendChild) {
-        this.grpProvinces.appendChild(dp);
+      if (this.grpProvinces && this.grpProvinces.addLayer) {
+        this.grpProvinces.addLayer(dp);
       }
     }
   }
@@ -1210,15 +1192,15 @@ export class HistoricalAtlasController {
   _buildNeighborCountries() {
     const list = Array.isArray(this.snapshots.neighbors) ? this.snapshots.neighbors : [];
     for (const item of list) {
-      const path = this._svgNode(
+      const path = this._mapElement(
         'path',
-        { d: this.projector.shapeToSvgPath(item.shape, false), class: 'neighbor-shape' },
+        { d: this.projector.shapeToPath(item.shape, false), class: 'neighbor-shape' },
         this.grpNeighbors
       );
-      path.dataset.countryTitle = item.title;
+      path.metadata.countryTitle = item.title;
       if (item.anchor) {
         const [cx, cy] = this.projector.toScreen(item.anchor[0], item.anchor[1]);
-        const lbl = this._svgNode(
+        const lbl = this._mapElement(
           'text',
           {
             'data-x': cx.toFixed(1),
@@ -1229,12 +1211,12 @@ export class HistoricalAtlasController {
           },
           this.grpNeighbors
         );
-        lbl.dataset.rawName = item.title;
-        lbl.textContent = this.trTerm(item.title);
+        lbl.metadata.rawName = item.title;
+        lbl.label = this.trTerm(item.title);
       }
     }
     this._invalidateTypographyLayout();
-    this._rescaleSvgTypography();
+    this._layoutMapLabels();
   }
 
   // ---------------- Historical Layers ----------------
@@ -1267,15 +1249,15 @@ export class HistoricalAtlasController {
 
   _renderDynasty(dynasty, prevSnap = null) {
     document.documentElement.style.setProperty('--dynasty-accent', dynasty.tint);
-    if (this.svg && dynasty && dynasty.key) {
-      if (this.svg.dataset) {
-        this.svg.dataset.dynasty = dynasty.key;
+    if (this.scene && dynasty && dynasty.key) {
+      if (this.scene.metadata) {
+        this.scene.metadata.dynasty = dynasty.key;
       }
-      if (typeof this.svg.setAttribute === 'function') {
-        this.svg.setAttribute('data-dynasty', dynasty.key);
+      if (typeof this.scene.set === 'function') {
+        this.scene.set('data-dynasty', dynasty.key);
       }
     }
-    if (this.grpGhostDiff) this.grpGhostDiff.innerHTML = '';
+    if (this.grpGhostDiff) this.grpGhostDiff.clearLayers();
     this._renderSettlements(dynasty);
     this._renderCorridors();
     this._renderMilestones(dynasty);
@@ -1294,10 +1276,10 @@ export class HistoricalAtlasController {
 
   _renderPolitiesAndPrefectures(dynasty, snap) {
     this._setPolityFocus(null);
-    this.grpPolities.innerHTML = '';
-    this.grpPrefectures.innerHTML = '';
+    this.grpPolities.clearLayers();
+    this.grpPrefectures.clearLayers();
 
-    const polGroup = this._svgNode('g', { class: 'fade-enter' }, this.grpPolities);
+    const polGroup = this._mapElement('group', { class: 'fade-enter' }, this.grpPolities);
     const zOrder = { neighbor: 0, main: 1, rival: 2, protectorate: 3 };
     const sorted = (snap.polities || [])
       .slice()
@@ -1306,20 +1288,20 @@ export class HistoricalAtlasController {
     for (const pol of sorted) {
       const isN = pol.role === 'neighbor';
       const attrs = {
-        d: this.projector.shapeToSvgPath(pol.shape),
+        d: this.projector.shapeToPath(pol.shape),
         class: `polity-shape ${pol.role}`,
       };
       if (!isN) {
         attrs.fill = pol.tint;
         attrs.stroke = pol.tint;
       }
-      const path = this._svgNode('path', attrs, polGroup);
-      path.dataset.polityTitle = pol.title;
-      path.dataset.polityRole = pol.role;
+      const path = this._mapElement('path', attrs, polGroup);
+      path.metadata.polityTitle = pol.title;
+      path.metadata.polityRole = pol.role;
 
       if (pol.anchor) {
         const [cx, cy] = this.projector.toScreen(pol.anchor[0], pol.anchor[1]);
-        const lbl = this._svgNode(
+        const lbl = this._mapElement(
           'text',
           {
             class: `polity-caption ${pol.role}`,
@@ -1331,31 +1313,31 @@ export class HistoricalAtlasController {
           polGroup
         );
         lbl._polShape = pol.shape;
-        lbl.dataset.polityTitle = pol.title;
-        lbl.dataset.polityRole = pol.role;
-        lbl.textContent = this.trTerm(pol.title);
+        lbl.metadata.polityTitle = pol.title;
+        lbl.metadata.polityRole = pol.role;
+        lbl.label = this.trTerm(pol.title);
       }
     }
 
-    const prefGroup = this._svgNode('g', { class: 'fade-enter' }, this.grpPrefectures);
+    const prefGroup = this._mapElement('group', { class: 'fade-enter' }, this.grpPrefectures);
     for (const pref of snap.prefectures || []) {
-      const path = this._svgNode(
+      const path = this._mapElement(
         'path',
-        { d: this.projector.shapeToSvgPath(pref.shape), class: 'prefecture-shape' },
+        { d: this.projector.shapeToPath(pref.shape), class: 'prefecture-shape' },
         prefGroup
       );
-      path.dataset.prefTitle = pref.title;
-      path.dataset.prefCategory = pref.category;
+      path.metadata.prefTitle = pref.title;
+      path.metadata.prefCategory = pref.category;
     }
 
     const regBoundaryPath = this._buildRegionBoundaryPath(snap);
     if (regBoundaryPath) {
-      this._svgNode(
+      this._mapElement(
         'path',
         { d: regBoundaryPath, class: 'region-shape-casing' },
         prefGroup
       );
-      this._svgNode(
+      this._mapElement(
         'path',
         { d: regBoundaryPath, class: 'region-shape' },
         prefGroup
@@ -1366,7 +1348,7 @@ export class HistoricalAtlasController {
       if (reg.anchor && reg.title) {
         const [baseX, baseY] = this.projector.toScreen(reg.anchor[0], reg.anchor[1]);
         const isQiao = reg.category === '侨州';
-        const rLbl = this._svgNode(
+        const rLbl = this._mapElement(
           'text',
           {
             class: isQiao ? 'region-caption is-qiaozhou' : 'region-caption',
@@ -1378,7 +1360,7 @@ export class HistoricalAtlasController {
           prefGroup
         );
         rLbl._regShape = reg.shape;
-        rLbl.textContent = isQiao
+        rLbl.label = isQiao
           ? this.locale === 'en'
             ? `${this.trTerm(reg.title)} (Emigre)`
             : `${reg.title}·侨`
@@ -1389,7 +1371,7 @@ export class HistoricalAtlasController {
     this.lastRenderedSnap = snap;
     this._renderLegendBox(snap);
     this._syncTracedPrefecture();
-    this._rescaleSvgTypography();
+    this._layoutMapLabels();
   }
 
   _buildRegionBoundaryPath(snap) {
@@ -1528,8 +1510,8 @@ export class HistoricalAtlasController {
 
   _renderSettlements(dynasty) {
     this.activeSettlementMask = this._settlementMask(dynasty, this.year);
-    this.grpSettlements.innerHTML = '';
-    const group = this._svgNode('g', { class: 'fade-enter' }, this.grpSettlements);
+    this.grpSettlements.clearLayers();
+    const group = this._mapElement('group', { class: 'fade-enter' }, this.grpSettlements);
     // Paint order: Tier-2 secondary cities first (bottom), Tier-1 cities second, Capitals last (top)
     const activeList = (dynasty.settlements || [])
       .filter(
@@ -1570,7 +1552,7 @@ export class HistoricalAtlasController {
             ? 'settlement-node is-tier2 is-trace-city'
             : 'settlement-node is-tier2'
           : 'settlement-node';
-      const node = this._svgNode(
+      const node = this._mapElement(
         'g',
         {
           class: cls,
@@ -1579,25 +1561,25 @@ export class HistoricalAtlasController {
         },
         group
       );
-      node.dataset.ancient = item.ancient;
-      node.dataset.modern = item.modern || '';
-      node.dataset.remark = item.remark || '';
-      node.dataset.lng = String(item.coord[0]);
-      node.dataset.lat = String(item.coord[1]);
-      node.dataset.prefAlign = item.align || 'r';
-      node.dataset.tier = item.isCapital ? '0' : isTier2 ? '2' : '1';
+      node.metadata.ancient = item.ancient;
+      node.metadata.modern = item.modern || '';
+      node.metadata.remark = item.remark || '';
+      node.metadata.lng = String(item.coord[0]);
+      node.metadata.lat = String(item.coord[1]);
+      node.metadata.prefAlign = item.align || 'r';
+      node.metadata.tier = item.isCapital ? '0' : isTier2 ? '2' : '1';
 
       if (item.isCapital) {
         if (isHintCap) {
-          this._svgNode('circle', { class: 'cap-breath-ring', r: 6.5 }, node);
-          this._svgNode('circle', { class: 'cap-breath-ring is-delayed', r: 6.5 }, node);
+          this._mapElement('circle', { class: 'cap-breath-ring', r: 6.5 }, node);
+          this._mapElement('circle', { class: 'cap-breath-ring is-delayed', r: 6.5 }, node);
         }
-        this._svgNode('circle', { class: 'cap-ring', r: 4.5 }, node);
-        this._svgNode('polygon', { class: 'dot', points: '0,-3.2 3.2,0 0,3.2 -3.2,0' }, node);
+        this._mapElement('circle', { class: 'cap-ring', r: 4.5 }, node);
+        this._mapElement('polygon', { class: 'dot', points: '0,-3.2 3.2,0 0,3.2 -3.2,0' }, node);
       } else if (isTier2) {
-        this._svgNode('circle', { class: 'dot', r: 1.7 }, node);
+        this._mapElement('circle', { class: 'dot', r: 1.7 }, node);
       } else {
-        this._svgNode('circle', { class: 'dot', r: 2.2 }, node);
+        this._mapElement('circle', { class: 'dot', r: 2.2 }, node);
       }
 
       const align = item.align || 'r';
@@ -1605,31 +1587,31 @@ export class HistoricalAtlasController {
       const dx = align === 'l' ? -5.5 : align === 'b' ? 0 : 5.5;
       const dy1 = align === 'b' ? 10.2 : align === 't' ? -4.8 : 3.0;
 
-      const nameEl = this._svgNode(
+      const nameEl = this._mapElement(
         'text',
         { class: 'name', x: dx, y: dy1, 'text-anchor': anchor },
         node
       );
-      nameEl.textContent =
+      nameEl.label =
         dynasty.key === 'roc' || dynasty.key === 'prc'
           ? this.trModernCity(item.ancient)
           : this.trTerm(item.ancient);
 
       if (isHintCap) {
-        const tagG = this._svgNode(
+        const tagG = this._mapElement(
           'g',
           { class: 'cap-hint-tag', transform: 'translate(0, 15.2)' },
           node
         );
-        const innerG = this._svgNode('g', { class: 'cap-hint-inner' }, tagG);
-        this._svgNode(
+        const innerG = this._mapElement('group', { class: 'cap-hint-inner' }, tagG);
+        this._mapElement(
           'line',
           { class: 'cap-hint-stem', x1: '0', y1: '-9.8', x2: '0', y2: '-6.8' },
           innerG
         );
         const isEn = this.locale === 'en';
         const pillW = isEn ? 132 : 112;
-        this._svgNode(
+        this._mapElement(
           'rect',
           {
             class: 'cap-hint-bg',
@@ -1641,12 +1623,12 @@ export class HistoricalAtlasController {
           },
           innerG
         );
-        const hintTxt = this._svgNode(
+        const hintTxt = this._mapElement(
           'text',
           { class: 'cap-hint-text', x: '0', y: '0.3' },
           innerG
         );
-        hintTxt.textContent = isEn
+        hintTxt.label = isEn
           ? '◆ Click city · 2,000 yrs of history ›'
           : '◆ 点按城池 · 阅两千年身世 ›';
       }
@@ -1677,7 +1659,7 @@ export class HistoricalAtlasController {
         ]
           .filter(Boolean)
           .join(' ');
-        const pNode = this._svgNode(
+        const pNode = this._mapElement(
           'g',
           {
             class: cls,
@@ -1686,17 +1668,17 @@ export class HistoricalAtlasController {
           },
           group
         );
-        pNode.dataset.passKey = p.key;
-        pNode.dataset.ancient = this.locale === 'en' ? p.ancientEn : p.ancientZh;
-        pNode.dataset.modern = this.locale === 'en' ? p.modernEn : p.modernZh;
-        pNode.dataset.remark = this.locale === 'en' ? p.rangeEn : p.rangeZh;
-        pNode.dataset.chokepoint = this.locale === 'en' ? p.chokepointEn : p.chokepointZh;
-        pNode.dataset.lng = String(p.coord[0]);
-        pNode.dataset.lat = String(p.coord[1]);
-        pNode.dataset.prefAlign = p.align || 'r';
-        pNode.dataset.tier = 'pass';
+        pNode.metadata.passKey = p.key;
+        pNode.metadata.ancient = this.locale === 'en' ? p.ancientEn : p.ancientZh;
+        pNode.metadata.modern = this.locale === 'en' ? p.modernEn : p.modernZh;
+        pNode.metadata.remark = this.locale === 'en' ? p.rangeEn : p.rangeZh;
+        pNode.metadata.chokepoint = this.locale === 'en' ? p.chokepointEn : p.chokepointZh;
+        pNode.metadata.lng = String(p.coord[0]);
+        pNode.metadata.lat = String(p.coord[1]);
+        pNode.metadata.prefAlign = p.align || 'r';
+        pNode.metadata.tier = 'pass';
 
-        this._svgNode(
+        this._mapElement(
           'path',
           {
             class: 'pass-gate-icon',
@@ -1708,18 +1690,18 @@ export class HistoricalAtlasController {
         const anchor = align === 'l' ? 'end' : align === 'b' ? 'middle' : 'start';
         const dx = align === 'l' ? -5.6 : align === 'b' ? 0 : 5.6;
         const dy1 = align === 'b' ? 9.8 : align === 't' ? -4.5 : 2.8;
-        const nameEl = this._svgNode(
+        const nameEl = this._mapElement(
           'text',
           { class: 'name pass-name', x: dx, y: dy1, 'text-anchor': anchor },
           pNode
         );
-        nameEl.textContent = this.locale === 'en' ? p.ancientEn : p.ancientZh;
+        nameEl.label = this.locale === 'en' ? p.ancientEn : p.ancientZh;
       }
     }
-    group.querySelectorAll('.settlement-node.is-capital').forEach((capNode) => {
-      group.appendChild(capNode);
+    group.findAll({"tags":["settlement-node","is-capital"]}).forEach((capNode) => {
+      group.addLayer(capNode);
     });
-    this._rescaleSvgTypography();
+    this._layoutMapLabels();
   }
 
   _renderCorridors() {
@@ -1733,8 +1715,8 @@ export class HistoricalAtlasController {
     if (mask === this.activeCorridorMask) return;
     this.activeCorridorMask = mask;
 
-    this.grpCorridors.innerHTML = '';
-    const group = this._svgNode('g', { class: 'fade-enter' }, this.grpCorridors);
+    this.grpCorridors.clearLayers();
+    const group = this._mapElement('group', { class: 'fade-enter' }, this.grpCorridors);
     for (const corr of this.corridors) {
       if (corr.span && (y < corr.span[0] || y > corr.span[1])) continue;
 
@@ -1745,17 +1727,17 @@ export class HistoricalAtlasController {
           pathStr += (i === 0 ? 'M' : 'L') + px.toFixed(1) + ' ' + py.toFixed(1);
         }
       }
-      const p = this._svgNode(
+      const p = this._mapElement(
         'path',
         { d: pathStr, class: `corridor-line ${corr.kind}` },
         group
       );
-      p.dataset.corrTitle = this.corridorTitle(corr);
-      p.dataset.corrSummary = this.corridorSummary(corr);
+      p.metadata.corrTitle = this.corridorTitle(corr);
+      p.metadata.corrSummary = this.corridorSummary(corr);
 
       if (corr.labelAt) {
         const [lx, ly] = this.projector.toScreen(corr.labelAt[0], corr.labelAt[1]);
-        const lbl = this._svgNode(
+        const lbl = this._mapElement(
           'text',
           {
             class: `corridor-caption ${corr.kind}`,
@@ -1766,10 +1748,10 @@ export class HistoricalAtlasController {
           },
           group
         );
-        lbl.textContent = this.corridorTitle(corr);
+        lbl.label = this.corridorTitle(corr);
       }
     }
-    this._rescaleSvgTypography();
+    this._layoutMapLabels();
     if (this.lastRenderedSnap) this._renderLegendBox(this.lastRenderedSnap);
   }
 
@@ -1799,12 +1781,12 @@ export class HistoricalAtlasController {
   }
 
   _renderMilestones(dynasty) {
-    this.grpMilestones.innerHTML = '';
-    const group = this._svgNode('g', { class: 'fade-enter' }, this.grpMilestones);
+    this.grpMilestones.clearLayers();
+    const group = this._mapElement('group', { class: 'fade-enter' }, this.grpMilestones);
     (dynasty.milestones || []).forEach((m, idx) => {
       if (!m.coord) return;
       const [x, y] = this.projector.toScreen(m.coord[0], m.coord[1]);
-      const pin = this._svgNode(
+      const pin = this._mapElement(
         'g',
         {
           class: 'milestone-pin',
@@ -1815,11 +1797,11 @@ export class HistoricalAtlasController {
         },
         group
       );
-      this._svgNode('circle', { class: 'ev-ring', r: 9 }, pin);
-      this._svgNode('polygon', { class: 'ev-core', points: '0,-5.5 5.5,0 0,5.5 -5.5,0' }, pin);
+      this._mapElement('circle', { class: 'ev-ring', r: 9 }, pin);
+      this._mapElement('polygon', { class: 'ev-core', points: '0,-5.5 5.5,0 0,5.5 -5.5,0' }, pin);
     });
     this._updateMilestoneStates(dynasty);
-    this._rescaleSvgTypography();
+    this._layoutMapLabels();
     if (
       this.activeMilestone &&
       this.activeMilestone.dynastyKey === dynasty.key &&
@@ -1851,26 +1833,26 @@ export class HistoricalAtlasController {
   _updateMilestoneStates(dynasty) {
     const activeIdx = this._activeMilestoneIndex(dynasty);
     let currentPin = null;
-    this.grpMilestones.querySelectorAll('.milestone-pin').forEach((pin) => {
-      const idx = Number(pin.dataset.idx);
+    this.grpMilestones.findAll({"tags":["milestone-pin"]}).forEach((pin) => {
+      const idx = Number(pin.metadata.idx);
       const m = (dynasty.milestones || [])[idx];
-      const effY = m ? this._clampYearToDynasty(dynasty, m.year) : Number(pin.dataset.year);
+      const effY = m ? this._clampYearToDynasty(dynasty, m.year) : Number(pin.metadata.year);
       const nextFuture = effY > this.year && idx !== activeIdx;
       const isCurrent = idx === activeIdx;
-      pin.classList.toggle('is-future', nextFuture);
-      pin.classList.toggle('is-past', effY <= this.year && !isCurrent);
-      pin.classList.toggle('is-current', isCurrent);
+      pin.tags.toggle('is-future', nextFuture);
+      pin.tags.toggle('is-past', effY <= this.year && !isCurrent);
+      pin.tags.toggle('is-current', isCurrent);
       if (isCurrent) currentPin = pin;
     });
-    if (currentPin && currentPin.parentNode) {
-      currentPin.parentNode.appendChild(currentPin);
+    if (currentPin && currentPin.parent) {
+      currentPin.parent.addLayer(currentPin);
     }
   }
 
   _syncAutoMilestoneBalloon(dynasty) {
     if (!dynasty || !this.milestoneBalloon) return;
     const milestonesHidden =
-      this.grpMilestones && this.grpMilestones.classList.contains('is-hidden');
+      this.grpMilestones && this.grpMilestones.tags.contains('is-hidden');
     const isMobile = typeof window !== 'undefined' && window.innerWidth <= 900;
     const genCard = this._id('genealogy-card');
     const mobileOverlayBusy =
@@ -1917,8 +1899,8 @@ export class HistoricalAtlasController {
       am.locale === this.locale &&
       !this.milestoneBalloon.classList.contains('is-hidden')
     ) {
-      this.grpMilestones.querySelectorAll('.milestone-pin').forEach((n) => {
-        n.classList.toggle('is-active', Number(n.dataset.idx) === am.idx);
+      this.grpMilestones.findAll({"tags":["milestone-pin"]}).forEach((n) => {
+        n.tags.toggle('is-active', Number(n.metadata.idx) === am.idx);
       });
       this._positionMilestoneBalloon();
       return;
@@ -1930,8 +1912,8 @@ export class HistoricalAtlasController {
     if (!milestoneEl || !dynasty) return null;
     const list = dynasty.milestones || [];
     const m0 =
-      (milestoneEl.dataset.idx !== undefined && list[Number(milestoneEl.dataset.idx)]) ||
-      list.find((item) => item.year === Number(milestoneEl.dataset.year)) ||
+      (milestoneEl.metadata.idx !== undefined && list[Number(milestoneEl.metadata.idx)]) ||
+      list.find((item) => item.year === Number(milestoneEl.metadata.year)) ||
       null;
     if (!m0 || !m0.coord) return m0;
     const colocated = list.filter(
@@ -1978,12 +1960,12 @@ export class HistoricalAtlasController {
       isAuto,
       locale: this.locale,
     };
-    this.grpMilestones.querySelectorAll('.milestone-pin').forEach((n) => {
-      n.classList.toggle('is-active', Number(n.dataset.idx) === mIdx);
+    this.grpMilestones.findAll({"tags":["milestone-pin"]}).forEach((n) => {
+      n.tags.toggle('is-active', Number(n.metadata.idx) === mIdx);
     });
     this._highlightCurrentMilestone(dynasty);
     this._updateMilestoneStates(dynasty);
-    if (!m.coord || (opts && opts.fromStep && this.grpMilestones && this.grpMilestones.classList.contains('is-hidden'))) {
+    if (!m.coord || (opts && opts.fromStep && this.grpMilestones && this.grpMilestones.tags.contains('is-hidden'))) {
       this.milestoneBalloon.classList.add('is-hidden');
       const vf = this._id('viewport-frame');
       if (vf) vf.classList.remove('has-open-milestone-balloon');
@@ -2094,28 +2076,28 @@ export class HistoricalAtlasController {
     const vf = this._id('viewport-frame');
     if (vf) vf.classList.remove('has-open-milestone-balloon');
     this.grpMilestones
-      .querySelectorAll('.milestone-pin.is-active')
-      .forEach((n) => n.classList.remove('is-active'));
+      .findAll({"tags":["milestone-pin","is-active"]})
+      .forEach((n) => n.tags.remove('is-active'));
   }
 
   _setPolityFocus(targetTitle) {
     if (!this.grpPolities) return;
     if (!targetTitle) {
-      this.grpPolities.classList.remove('has-polity-focus');
+      this.grpPolities.tags.remove('has-polity-focus');
       this.grpPolities
-        .querySelectorAll('.is-focused')
-        .forEach((el) => el.classList.remove('is-focused'));
+        .findAll({"tags":["is-focused"]})
+        .forEach((el) => el.tags.remove('is-focused'));
       return;
     }
-    this.grpPolities.classList.add('has-polity-focus');
+    this.grpPolities.tags.add('has-polity-focus');
     this.grpPolities
-      .querySelectorAll('.polity-shape, .polity-caption')
+      .findAll([{"tags":["polity-shape"]},{"tags":["polity-caption"]}])
       .forEach((el) => {
         const match =
           targetTitle === '__neighbors__'
-            ? el.dataset.polityRole === 'neighbor'
-            : el.dataset.polityTitle === targetTitle;
-        el.classList.toggle('is-focused', match);
+            ? el.metadata.polityRole === 'neighbor'
+            : el.metadata.polityTitle === targetTitle;
+        el.tags.toggle('is-focused', match);
       });
   }
 
@@ -2166,7 +2148,7 @@ export class HistoricalAtlasController {
       this.scope.clearTimeout(this.ghostTimer);
       this.ghostTimer = null;
     }
-    this.grpGhostDiff.innerHTML = '';
+    this.grpGhostDiff.clearLayers();
     if (!refSnap || !Array.isArray(refSnap.polities)) return;
     const chkPol = this._id('chk-polities');
     if (chkPol && !chkPol.checked) return;
@@ -2176,15 +2158,15 @@ export class HistoricalAtlasController {
       (p) => p.role !== 'neighbor'
     );
     const curPaths = new Set(
-      curNonNeighbors.map((p) => `${p.title}:${this.projector.shapeToSvgPath(p.shape)}`)
+      curNonNeighbors.map((p) => `${p.title}:${this.projector.shapeToPath(p.shape)}`)
     );
     const curShapes = new Set(
-      curNonNeighbors.map((p) => this.projector.shapeToSvgPath(p.shape))
+      curNonNeighbors.map((p) => this.projector.shapeToPath(p.shape))
     );
 
     const candidates = refSnap.polities.filter((p) => p.role !== 'neighbor');
     const diffCandidates = candidates.filter((pol) => {
-      const dStr = this.projector.shapeToSvgPath(pol.shape);
+      const dStr = this.projector.shapeToPath(pol.shape);
       return dStr && !curPaths.has(`${pol.title}:${dStr}`) && !curShapes.has(dStr);
     });
     const listToRender =
@@ -2196,9 +2178,9 @@ export class HistoricalAtlasController {
 
     let count = 0;
     for (const pol of listToRender) {
-      const dStr = this.projector.shapeToSvgPath(pol.shape);
+      const dStr = this.projector.shapeToPath(pol.shape);
       if (!dStr) continue;
-      const ghostPath = this._svgNode(
+      const ghostPath = this._mapElement(
         'path',
         {
           d: dStr,
@@ -2207,15 +2189,15 @@ export class HistoricalAtlasController {
         },
         this.grpGhostDiff
       );
-      if (ghostPath && ghostPath.dataset) {
-        ghostPath.dataset.polityTitle = pol.title || '';
-        ghostPath.dataset.polityRole = pol.role || '';
+      if (ghostPath && ghostPath.metadata) {
+        ghostPath.metadata.polityTitle = pol.title || '';
+        ghostPath.metadata.polityRole = pol.role || '';
       }
       count++;
     }
     if (count > 0 && mode === 'fade') {
       this.ghostTimer = this.scope.timeout(() => {
-        if (this.grpGhostDiff) this.grpGhostDiff.innerHTML = '';
+        if (this.grpGhostDiff) this.grpGhostDiff.clearLayers();
         this.ghostTimer = null;
       }, 2850);
     }
@@ -2223,7 +2205,7 @@ export class HistoricalAtlasController {
 
   _clearPreviewGhost() {
     if (!this.grpGhostDiff || this.ghostTimer) return;
-    this.grpGhostDiff.innerHTML = '';
+    this.grpGhostDiff.clearLayers();
   }
 
   _previewStageGhost(snapKey) {
@@ -2688,11 +2670,11 @@ export class HistoricalAtlasController {
     this.activeTrace = null;
     this.activeTraceLabel = '';
     this.activeReturnPerson = null;
-    if (this.grpGenealogy) this.grpGenealogy.innerHTML = '';
-    if (this.grpSettlements && typeof this.grpSettlements.querySelectorAll === 'function') {
+    if (this.grpGenealogy) this.grpGenealogy.clearLayers();
+    if (this.grpSettlements && typeof this.grpSettlements.findAll === 'function') {
       this.grpSettlements
-        .querySelectorAll('.settlement-node.is-trace-city')
-        .forEach((el) => el.classList.remove('is-trace-city'));
+        .findAll({"tags":["settlement-node","is-trace-city"]})
+        .forEach((el) => el.tags.remove('is-trace-city'));
     }
     this._syncTracedPrefecture();
   }
@@ -2709,7 +2691,7 @@ export class HistoricalAtlasController {
     this.activePersonEventIdx = -1;
     this._lastPersonPinZoom = 0;
     if (this.grpJourney && !this.activeCustomRoute) {
-      this.grpJourney.innerHTML = '';
+      this.grpJourney.clearLayers();
     }
     const vf = this._id('viewport-frame');
     if (vf) vf.classList.remove('has-active-person');
@@ -3180,7 +3162,7 @@ export class HistoricalAtlasController {
   }
 
   _findNearestPersonPin(clientX, clientY, maxPx = 26) {
-    if (!this.activePerson || !this.grpJourney || !this.svg) return null;
+    if (!this.activePerson || !this.grpJourney || !this.scene) return null;
     const rect = this._mapViewportRect();
     if (!rect.width || !rect.height) return null;
     const screenScale = Math.min(rect.width / this.camera.w, rect.height / this.camera.h);
@@ -3193,11 +3175,11 @@ export class HistoricalAtlasController {
 
     let bestNode = null;
     let bestDist = maxPx;
-    this.grpJourney.querySelectorAll('.journey-node').forEach((jn) => {
-      const sx = parseFloat(jn.getAttribute('data-x'));
-      const sy = parseFloat(jn.getAttribute('data-y'));
-      const ox = parseFloat(jn.getAttribute('data-ox') || '0');
-      const oy = parseFloat(jn.getAttribute('data-oy') || '0');
+    this.grpJourney.findAll({"tags":["journey-node"]}).forEach((jn) => {
+      const sx = parseFloat(jn.get('data-x'));
+      const sy = parseFloat(jn.get('data-y'));
+      const ox = parseFloat(jn.get('data-ox') || '0');
+      const oy = parseFloat(jn.get('data-oy') || '0');
       if (Number.isNaN(sx) || Number.isNaN(sy)) return;
       const px = rect.left + padX + (sx - this.camera.x) * screenScale + ox * localToPx;
       const py = rect.top + padY + (sy - this.camera.y) * screenScale + oy * localToPx;
@@ -3212,7 +3194,7 @@ export class HistoricalAtlasController {
 
   _renderPersonPinsOverlay() {
     if (!this.grpJourney) return;
-    this.grpJourney.innerHTML = '';
+    this.grpJourney.clearLayers();
     if (!this.activePerson) return;
 
     const { events } = this.activePerson;
@@ -3221,7 +3203,7 @@ export class HistoricalAtlasController {
 
     // Compute zoom-invariant screen-space cluster offsets so co-located pins (e.g. Chang'an ① ②)
     // never overlap at ANY zoom level on Desktop or Mobile while preserving exact data-x/data-y
-    // for _rescaleSvgTypography's automatic city label culling.
+    // for _layoutMapLabels's automatic city label culling.
     const clusters = rawPts.map(([sx, sy], i) => {
       const peers = [];
       rawPts.forEach(([ox, oy], j) => {
@@ -3280,7 +3262,7 @@ export class HistoricalAtlasController {
       const isCur = idx === curIdx;
       const stateCls =
         curIdx < 0 ? 'is-passed' : isCur ? 'is-current' : idx < curIdx ? 'is-passed' : 'is-upcoming';
-      const g = this._svgNode(
+      const g = this._mapElement(
         'g',
         {
           class: `journey-node ${stateCls}`,
@@ -3292,9 +3274,9 @@ export class HistoricalAtlasController {
         },
         this.grpJourney
       );
-      g.style.color = accentColor;
+      g.paint.color = accentColor;
 
-      const inner = this._svgNode(
+      const inner = this._mapElement(
         'g',
         {
           class: 'jn-pin-shift',
@@ -3303,13 +3285,13 @@ export class HistoricalAtlasController {
         g
       );
 
-      this._svgNode('circle', { class: 'jn-hit', r: 14, fill: 'transparent' }, inner);
+      this._mapElement('circle', { class: 'jn-hit', r: 14, fill: 'transparent' }, inner);
       if (isCur) {
-        this._svgNode('circle', { class: 'jn-pulse', r: 11.2 }, inner);
+        this._mapElement('circle', { class: 'jn-pulse', r: 11.2 }, inner);
       }
-      this._svgNode('circle', { class: 'jn-disc', r: isCur ? 7.6 : 5.8 }, inner);
-      const numTxt = this._svgNode('text', { class: 'jn-num', y: '0.5' }, inner);
-      numTxt.textContent = String(idx + 1);
+      this._mapElement('circle', { class: 'jn-disc', r: isCur ? 7.6 : 5.8 }, inner);
+      const numTxt = this._mapElement('text', { class: 'jn-num', y: '0.5' }, inner);
+      numTxt.label = String(idx + 1);
 
       const clusterHasCur = curIdx >= 0 && cl.peers.includes(curIdx);
       const ownsClusterLabel = isCur || (!clusterHasCur && cl.isPrimary);
@@ -3319,22 +3301,22 @@ export class HistoricalAtlasController {
         const compactLbl = isCur
           ? fullLbl
           : fullLbl.replace(/\s*[（(][^）)]*[）)]\s*/g, '').trim() || fullLbl;
-        const lblTxt = this._svgNode(
+        const lblTxt = this._mapElement(
           'text',
           { class: 'jn-label', x: '0', y: '-11.5' },
           inner
         );
-        lblTxt.textContent = compactLbl;
+        lblTxt.label = compactLbl;
       }
     }
 
-    this._rescaleSvgTypography();
+    this._layoutMapLabels();
   }
 
   _setHoveredPersonPin(idx) {
     if (!this.grpJourney) return;
-    this.grpJourney.querySelectorAll('.journey-node').forEach((jn) => {
-      jn.classList.toggle('is-hover-pin', Number(jn.dataset.stopIdx) === idx);
+    this.grpJourney.findAll({"tags":["journey-node"]}).forEach((jn) => {
+      jn.tags.toggle('is-hover-pin', Number(jn.metadata.stopIdx) === idx);
     });
   }
 
@@ -3486,12 +3468,12 @@ export class HistoricalAtlasController {
   }
 
   _syncTracedPrefecture() {
-    if (!this.grpPrefectures || typeof this.grpPrefectures.querySelectorAll !== 'function') {
+    if (!this.grpPrefectures || typeof this.grpPrefectures.findAll !== 'function') {
       return;
     }
     this.grpPrefectures
-      .querySelectorAll('.prefecture-shape.is-traced')
-      .forEach((el) => el.classList.remove('is-traced'));
+      .findAll({"tags":["prefecture-shape","is-traced"]})
+      .forEach((el) => el.tags.remove('is-traced'));
     const cardEl = this._id('genealogy-card');
     if (!this.activeTrace || (cardEl && cardEl.classList.contains('is-hidden'))) {
       return;
@@ -3507,15 +3489,15 @@ export class HistoricalAtlasController {
       }
     }
     if (!matchedPrefTitle) return;
-    this.grpPrefectures.querySelectorAll('.prefecture-shape').forEach((el) => {
-      if (el.dataset && el.dataset.prefTitle === matchedPrefTitle) {
-        el.classList.add('is-traced');
-        if (el.parentNode && typeof el.parentNode.insertBefore === 'function') {
-          const regCasing = el.parentNode.querySelector('.region-shape-casing, .region-caption');
+    this.grpPrefectures.findAll({"tags":["prefecture-shape"]}).forEach((el) => {
+      if (el.metadata && el.metadata.prefTitle === matchedPrefTitle) {
+        el.tags.add('is-traced');
+        if (el.parent && typeof el.parent.moveBefore === 'function') {
+          const regCasing = el.parent.find([{"tags":["region-shape-casing"]},{"tags":["region-caption"]}]);
           if (regCasing) {
-            el.parentNode.insertBefore(el, regCasing);
-          } else if (typeof el.parentNode.appendChild === 'function') {
-            el.parentNode.appendChild(el);
+            el.parent.moveBefore(el, regCasing);
+          } else if (typeof el.parent.addLayer === 'function') {
+            el.parent.addLayer(el);
           }
         }
       }
@@ -3787,21 +3769,21 @@ export class HistoricalAtlasController {
   _findNearestTouchNode(clientX, clientY, maxPx = 22) {
     const rect = this._mapViewportRect();
     if (!rect.width || !rect.height) return { settlementEl: null, milestoneEl: null };
-    const [sx, sy] = this._clientToSvgPoint(clientX, clientY);
+    const [sx, sy] = this._clientToMapPoint(clientX, clientY);
     const scale = Math.min(rect.width / this.camera.w, rect.height / this.camera.h);
     let bestSettle = null;
     let bestSettlePx = maxPx;
-    if (this.grpSettlements && !this.grpSettlements.classList.contains('is-hidden')) {
-      const showTier2 = this.svg.classList.contains('is-zoomed-cities');
-      this.grpSettlements.querySelectorAll('.settlement-node').forEach((node) => {
+    if (this.grpSettlements && !this.grpSettlements.tags.contains('is-hidden')) {
+      const showTier2 = this.scene.tags.contains('is-zoomed-cities');
+      this.grpSettlements.findAll({"tags":["settlement-node"]}).forEach((node) => {
         if (
           !showTier2 &&
-          node.classList.contains('is-tier2') &&
-          !node.classList.contains('is-trace-city')
+          node.tags.contains('is-tier2') &&
+          !node.tags.contains('is-trace-city')
         ) {
           return;
         }
-        const dPx = Math.hypot(Number(node.dataset.x) - sx, Number(node.dataset.y) - sy) * scale;
+        const dPx = Math.hypot(Number(node.metadata.x) - sx, Number(node.metadata.y) - sy) * scale;
         if (dPx <= bestSettlePx) {
           bestSettlePx = dPx;
           bestSettle = node;
@@ -3810,10 +3792,10 @@ export class HistoricalAtlasController {
     }
     let bestMile = null;
     let bestMilePx = maxPx;
-    if (this.grpMilestones && !this.grpMilestones.classList.contains('is-hidden')) {
-      this.grpMilestones.querySelectorAll('.milestone-pin').forEach((pin) => {
-        if (pin.classList.contains('is-future')) return;
-        const dPx = Math.hypot(Number(pin.dataset.x) - sx, Number(pin.dataset.y) - sy) * scale;
+    if (this.grpMilestones && !this.grpMilestones.tags.contains('is-hidden')) {
+      this.grpMilestones.findAll({"tags":["milestone-pin"]}).forEach((pin) => {
+        if (pin.tags.contains('is-future')) return;
+        const dPx = Math.hypot(Number(pin.metadata.x) - sx, Number(pin.metadata.y) - sy) * scale;
         if (dPx <= bestMilePx) {
           bestMilePx = dPx;
           bestMile = pin;
@@ -4033,26 +4015,26 @@ export class HistoricalAtlasController {
     }
     this.activeTrace = [lng, lat];
     this._syncMobileOverlayState();
-    this.grpGenealogy.innerHTML = '';
+    this.grpGenealogy.clearLayers();
     const [sx, sy] = this.projector.toScreen(lng, lat);
     const onCustomRouteStop =
       Array.isArray(this.activeCustomRoute) &&
       this.activeCustomRoute.some((st) => Math.hypot(st.lng - lng, st.lat - lat) < 0.02);
     if (!onCustomRouteStop) {
-      const g = this._svgNode(
+      const g = this._mapElement(
         'g',
         { 'data-x': sx.toFixed(1), 'data-y': sy.toFixed(1) },
         this.grpGenealogy
       );
-      this._svgNode('circle', { class: 'trace-pin', r: 10 }, g);
-      this._svgNode('circle', { class: 'trace-dot', r: 3.5 }, g);
+      this._mapElement('circle', { class: 'trace-pin', r: 10 }, g);
+      this._mapElement('circle', { class: 'trace-dot', r: 3.5 }, g);
       if (this.activeTraceLabel) {
-        const lbl = this._svgNode(
+        const lbl = this._mapElement(
           'text',
           { class: 'trace-pin-label', x: '0', y: '22', 'text-anchor': 'middle' },
           g
         );
-        lbl.textContent =
+        lbl.label =
           this.locale === 'en' ? this.trTerm(this.activeTraceLabel) : this.activeTraceLabel;
       }
     }
@@ -4072,10 +4054,10 @@ export class HistoricalAtlasController {
         this.camera.x = sx - this.camera.w * 0.38;
         this._applyCamera(true);
       } else {
-        this._rescaleSvgTypography(true);
+        this._layoutMapLabels(true);
       }
     } else {
-      this._rescaleSvgTypography(true);
+      this._layoutMapLabels(true);
     }
 
     const modernLoc = this._resolveModernLocationAt(lng, lat);
@@ -4706,7 +4688,7 @@ export class HistoricalAtlasController {
     const cur = this.dynasties[this.dynastyIdx];
     const nextSnapKey = this._resolveSnapKey(cur, y);
 
-    if (prevIdx !== this.dynastyIdx || !this.grpSettlements.firstChild) {
+    if (prevIdx !== this.dynastyIdx || !this.grpSettlements.first) {
       if (prevIdx !== this.dynastyIdx) {
         this._clearQuickSearchInput();
       }
@@ -4740,7 +4722,7 @@ export class HistoricalAtlasController {
     }
     if (this._hydroMask(y) !== this.activeHydroMask) {
       this._buildTerrainRivers();
-      this._rescaleSvgTypography();
+      this._layoutMapLabels();
     }
     // Auto callouts are kept or replaced by _syncAutoMilestoneBalloon below.
     const am = this.activeMilestone;
@@ -5117,17 +5099,14 @@ export class HistoricalAtlasController {
       this.mapView.applyCamera(forceTypography);
       return;
     }
-    this.svg.setAttribute(
-      'viewBox',
-      `${this.camera.x.toFixed(1)} ${this.camera.y.toFixed(1)} ${this.camera.w.toFixed(1)} ${this.camera.h.toFixed(1)}`
-    );
+
     const zoomChanged =
       forceTypography ||
       this._typoDirty ||
       this._lastTypographyWidth === undefined ||
       Math.abs(this.camera.w - this._lastTypographyWidth) > 0.05;
     if (zoomChanged) {
-      this._rescaleSvgTypography();
+      this._layoutMapLabels();
     }
     this._updateScaleBar();
     if (this.activeMilestone) this._positionMilestoneBalloon();
@@ -5136,7 +5115,7 @@ export class HistoricalAtlasController {
   _updateScaleBar() {
     const lblEl = this._id('scale-label-text');
     const barEl = this._id('scale-ruler-bar');
-    if (!lblEl || !barEl || !this.svg) return;
+    if (!lblEl || !barEl || !this.scene) return;
     const rect = (this.dragState && this.dragState.rect) || this._mapViewportRect();
     const rw = rect.width || 1000;
     const rh = rect.height || 700;
@@ -5275,7 +5254,7 @@ export class HistoricalAtlasController {
     return w;
   }
 
-  _rescaleSvgTypography() {
+  _layoutMapLabels() {
     const vw = typeof window !== 'undefined' ? window.innerWidth : 1280;
     this._lastTypographyWidth = this.camera.w;
     this._lastViewportWidth = vw;
@@ -5291,27 +5270,27 @@ export class HistoricalAtlasController {
     const passMinZoom = isMobile ? 3.25 : 2.28;
     const showPasses = z >= passMinZoom;
     const showMobilePrefDetail = !isMobile || z >= 3.55;
-    const showCorridors = !this.grpCorridors.classList.contains('is-hidden');
-    this.svg.classList.toggle('is-zoomed-cities', showTier2);
-    this.svg.classList.toggle('is-zoomed-passes', showPasses);
-    this.svg.classList.toggle('is-mobile-zoomed-detail', showMobilePrefDetail);
-    this.svg.classList.toggle('is-corridors-hidden', !showCorridors);
+    const showCorridors = !this.grpCorridors.tags.contains('is-hidden');
+    this.scene.tags.toggle('is-zoomed-cities', showTier2);
+    this.scene.tags.toggle('is-zoomed-passes', showPasses);
+    this.scene.tags.toggle('is-mobile-zoomed-detail', showMobilePrefDetail);
+    this.scene.tags.toggle('is-corridors-hidden', !showCorridors);
 
-    const showSettlements = !this.grpSettlements.classList.contains('is-hidden');
-    const showPrefectures = !this.grpPrefectures.classList.contains('is-hidden');
-    const showMilestones = !this.grpMilestones.classList.contains('is-hidden');
+    const showSettlements = !this.grpSettlements.tags.contains('is-hidden');
+    const showPrefectures = !this.grpPrefectures.tags.contains('is-hidden');
+    const showMilestones = !this.grpMilestones.tags.contains('is-hidden');
 
     // Scale static markers (milestones, journey waypoints, directional chevrons, challenge pins, genealogy overlays)
-    this.svg
-      .querySelectorAll(
-        '.neighbor-caption, .milestone-pin, #grp-journey g[data-x], #grp-challenge g[data-x], #grp-genealogy g[data-x]'
+    this.scene
+      .findAll(
+        [{"tags":["neighbor-caption"]},{"tags":["milestone-pin"]},{"kind":"group","metadata":{"x":true},"within":{"id":"grp-journey"}},{"kind":"group","metadata":{"x":true},"within":{"id":"grp-challenge"}},{"kind":"group","metadata":{"x":true},"within":{"id":"grp-genealogy"}}]
       )
       .forEach((node) => {
-        const x = node.getAttribute('data-x');
-        const y = node.getAttribute('data-y');
-        const rot = node.getAttribute('data-rot');
+        const x = node.get('data-x');
+        const y = node.get('data-y');
+        const rot = node.get('data-rot');
         if (x !== null) {
-          node.setAttribute(
+          node.set(
             'transform',
             rot !== null
               ? `translate(${x},${y}) scale(${invScale}) rotate(${rot})`
@@ -5322,24 +5301,24 @@ export class HistoricalAtlasController {
 
     // Keep active person numbered pins crisp & non-overlapping in real screen pixels at every zoom level
     if (this.activePerson && this.grpJourney) {
-      const svgRect =
+      const mapRect =
         (this.dragState && this.dragState.rect) ||
-        (typeof this.svg.getBoundingClientRect === 'function'
+        (typeof this.scene.getScreenBounds === 'function'
           ? this._mapViewportRect()
           : null);
-      const rw = (svgRect && svgRect.width) || vw || 1000;
-      const rh = (svgRect && svgRect.height) || rw * 0.7;
+      const rw = (mapRect && mapRect.width) || vw || 1000;
+      const rh = (mapRect && mapRect.height) || rw * 0.7;
       const screenScale = Math.min(rw / this.camera.w, rh / this.camera.h);
       const pinScale = Math.max(s, 0.92 / Math.max(0.12, screenScale));
       const pinScaleStr = pinScale.toFixed(3);
       const pxPerLocal = pinScale * screenScale;
-      const nodes = Array.from(this.grpJourney.querySelectorAll('.journey-node')).sort(
-        (a, b) => Number(a.dataset.stopIdx) - Number(b.dataset.stopIdx)
+      const nodes = Array.from(this.grpJourney.findAll({"tags":["journey-node"]})).sort(
+        (a, b) => Number(a.metadata.stopIdx) - Number(b.metadata.stopIdx)
       );
       const pts = nodes.map((n) => ({
         n,
-        x: Number(n.getAttribute('data-x')),
-        y: Number(n.getAttribute('data-y')),
+        x: Number(n.get('data-x')),
+        y: Number(n.get('data-y')),
         ox: 0,
         oy: 0,
       }));
@@ -5375,18 +5354,18 @@ export class HistoricalAtlasController {
         }
       }
       for (const p of pts) {
-        p.n.setAttribute('transform', `translate(${p.x.toFixed(1)},${p.y.toFixed(1)}) scale(${pinScaleStr})`);
-        p.n.setAttribute('data-ox', p.ox.toFixed(2));
-        p.n.setAttribute('data-oy', p.oy.toFixed(2));
-        const shiftEl = p.n.querySelector('.jn-pin-shift');
+        p.n.set('transform', `translate(${p.x.toFixed(1)},${p.y.toFixed(1)}) scale(${pinScaleStr})`);
+        p.n.set('data-ox', p.ox.toFixed(2));
+        p.n.set('data-oy', p.oy.toFixed(2));
+        const shiftEl = p.n.find({"tags":["jn-pin-shift"]});
         if (shiftEl) {
-          shiftEl.setAttribute('transform', `translate(${p.ox.toFixed(2)},${p.oy.toFixed(2)})`);
+          shiftEl.set('transform', `translate(${p.ox.toFixed(2)},${p.oy.toFixed(2)})`);
         }
       }
       const placedRects = pts
-        .map((p) => p.n.querySelector('.jn-disc'))
-        .filter((el) => el && typeof el.getBoundingClientRect === 'function')
-        .map((el) => el.getBoundingClientRect())
+        .map((p) => p.n.find({"tags":["jn-disc"]}))
+        .filter((el) => el && typeof el.getScreenBounds === 'function')
+        .map((el) => el.getScreenBounds())
         .filter((r) => r.width > 0);
       const candSlots = [
         { anchor: 'middle', lx: '0', ly: '-12.2' },
@@ -5396,18 +5375,18 @@ export class HistoricalAtlasController {
       ];
       const labelOrder = pts
         .slice()
-        .sort((a, b) => (a.n.classList.contains('is-current') ? -1 : b.n.classList.contains('is-current') ? 1 : 0));
+        .sort((a, b) => (a.n.tags.contains('is-current') ? -1 : b.n.tags.contains('is-current') ? 1 : 0));
       for (const p of labelOrder) {
-        const lbl = p.n.querySelector('.jn-label');
-        if (!lbl || typeof lbl.getBoundingClientRect !== 'function') continue;
-        const isCur = p.n.classList.contains('is-current');
-        lbl.style.display = '';
+        const lbl = p.n.find({"tags":["jn-label"]});
+        if (!lbl || typeof lbl.getScreenBounds !== 'function') continue;
+        const isCur = p.n.tags.contains('is-current');
+        lbl.paint.display = '';
         let chosenRect = null;
         for (const sl of candSlots) {
-          lbl.setAttribute('text-anchor', sl.anchor);
-          lbl.setAttribute('x', sl.lx);
-          lbl.setAttribute('y', sl.ly);
-          const r = lbl.getBoundingClientRect();
+          lbl.set('text-anchor', sl.anchor);
+          lbl.set('x', sl.lx);
+          lbl.set('y', sl.ly);
+          const r = lbl.getScreenBounds();
           if (!r.width) {
             chosenRect = r;
             break;
@@ -5423,22 +5402,22 @@ export class HistoricalAtlasController {
         if (chosenRect) {
           placedRects.push(chosenRect);
         } else if (isCur) {
-          lbl.setAttribute('text-anchor', 'middle');
-          lbl.setAttribute('x', '0');
-          lbl.setAttribute('y', '-12.2');
-          placedRects.push(lbl.getBoundingClientRect());
+          lbl.set('text-anchor', 'middle');
+          lbl.set('x', '0');
+          lbl.set('y', '-12.2');
+          placedRects.push(lbl.getScreenBounds());
         } else {
-          lbl.style.display = 'none';
+          lbl.paint.display = 'none';
         }
       }
     }
     if (this.grpRivers) {
-      this.grpRivers.querySelectorAll('.hydro-label').forEach((node) => {
-        const x = node.getAttribute('data-x');
-        const y = node.getAttribute('data-y');
-        const rot = node.getAttribute('data-rot') || '0';
+      this.grpRivers.findAll({"tags":["hydro-label"]}).forEach((node) => {
+        const x = node.get('data-x');
+        const y = node.get('data-y');
+        const rot = node.get('data-rot') || '0';
         if (x !== null) {
-          node.setAttribute(
+          node.set(
             'transform',
             `translate(${x},${y}) scale(${invScale}) rotate(${rot})`
           );
@@ -5459,38 +5438,38 @@ export class HistoricalAtlasController {
       return total;
     };
 
-    const settlementNodes = Array.from(this.svg.querySelectorAll('.settlement-node'));
+    const settlementNodes = Array.from(this.scene.findAll({"tags":["settlement-node"]}));
 
     // Sync traced Tier-2 city visibility state and reserve all visible city dots and milestone pins
     for (const node of settlementNodes) {
-      if (node.classList.contains('is-tier2')) {
-        const nLng = parseFloat(node.dataset.lng);
-        const nLat = parseFloat(node.dataset.lat);
+      if (node.tags.contains('is-tier2')) {
+        const nLng = parseFloat(node.metadata.lng);
+        const nLat = parseFloat(node.metadata.lat);
         const isTraced =
           Boolean(this.activeTrace) &&
           !isNaN(nLng) &&
           !isNaN(nLat) &&
           this.projector.greatCircleKm(this.activeTrace, [nLng, nLat]) <= 28;
-        node.classList.toggle('is-trace-city', isTraced);
+        node.tags.toggle('is-trace-city', isTraced);
       }
-      const isPass = node.classList.contains('is-pass');
+      const isPass = node.tags.contains('is-pass');
       if (isPass) {
-        if (!showCorridors || (!showPasses && !node.classList.contains('is-pass-trace'))) continue;
+        if (!showCorridors || (!showPasses && !node.tags.contains('is-pass-trace'))) continue;
       } else if (!showSettlements) {
         continue;
       }
-      const isT2 = node.classList.contains('is-tier2');
-      if (isT2 && !showTier2 && !node.classList.contains('is-trace-city')) continue;
-      const cx = parseFloat(node.getAttribute('data-x'));
-      const cy = parseFloat(node.getAttribute('data-y'));
-      const r = (node.classList.contains('is-capital') ? 5.2 : isPass ? 3.4 : isT2 ? 3.0 : 3.8) * s;
+      const isT2 = node.tags.contains('is-tier2');
+      if (isT2 && !showTier2 && !node.tags.contains('is-trace-city')) continue;
+      const cx = parseFloat(node.get('data-x'));
+      const cy = parseFloat(node.get('data-y'));
+      const r = (node.tags.contains('is-capital') ? 5.2 : isPass ? 3.4 : isT2 ? 3.0 : 3.8) * s;
       occupied.push({ x1: cx - r, y1: cy - r, x2: cx + r, y2: cy + r });
     }
     if (showMilestones) {
-      this.svg.querySelectorAll('.milestone-pin').forEach((pin) => {
-        if (pin.classList.contains('is-future')) return;
-        const mx = parseFloat(pin.getAttribute('data-x'));
-        const my = parseFloat(pin.getAttribute('data-y'));
+      this.scene.findAll({"tags":["milestone-pin"]}).forEach((pin) => {
+        if (pin.tags.contains('is-future')) return;
+        const mx = parseFloat(pin.get('data-x'));
+        const my = parseFloat(pin.get('data-y'));
         if (!isNaN(mx)) {
           occupied.push({
             x1: mx - 6.2 * s,
@@ -5501,14 +5480,14 @@ export class HistoricalAtlasController {
         }
       });
     }
-    if (this.grpRivers && !this.grpRivers.classList.contains('is-hidden')) {
-      this.grpRivers.querySelectorAll('.hydro-label').forEach((hl) => {
-        const hx = parseFloat(hl.getAttribute('data-x'));
-        const hy = parseFloat(hl.getAttribute('data-y'));
+    if (this.grpRivers && !this.grpRivers.tags.contains('is-hidden')) {
+      this.grpRivers.findAll({"tags":["hydro-label"]}).forEach((hl) => {
+        const hx = parseFloat(hl.get('data-x'));
+        const hy = parseFloat(hl.get('data-y'));
         if (!isNaN(hx) && !isNaN(hy)) {
-          const isLake = hl.classList.contains('is-lake');
-          const fPx = isLake ? 8.2 : hl.classList.contains('is-trunk') ? 8.6 : 7.4;
-          const hw = (this._estimateLocalTextWidth(hl.textContent, fPx, 1.5) * 0.5 + (isLake ? 8 : 4)) * s;
+          const isLake = hl.tags.contains('is-lake');
+          const fPx = isLake ? 8.2 : hl.tags.contains('is-trunk') ? 8.6 : 7.4;
+          const hw = (this._estimateLocalTextWidth(hl.label, fPx, 1.5) * 0.5 + (isLake ? 8 : 4)) * s;
           const hh = (isLake ? 8.5 : 5.5) * s;
           occupied.push({ x1: hx - hw, y1: hy - hh, x2: hx + hw, y2: hy + hh });
         }
@@ -5516,17 +5495,17 @@ export class HistoricalAtlasController {
     }
 
     const pinnedCoords = [];
-    if (this.grpJourney && this.grpJourney.firstChild) {
-      this.grpJourney.querySelectorAll('.journey-node').forEach((jn) => {
-        const jx = parseFloat(jn.getAttribute('data-x'));
-        const jy = parseFloat(jn.getAttribute('data-y'));
+    if (this.grpJourney && this.grpJourney.first) {
+      this.grpJourney.findAll({"tags":["journey-node"]}).forEach((jn) => {
+        const jx = parseFloat(jn.get('data-x'));
+        const jy = parseFloat(jn.get('data-y'));
         if (!isNaN(jx) && !isNaN(jy)) {
           pinnedCoords.push([jx, jy]);
           occupied.push({ x1: jx - 10 * s, y1: jy - 10 * s, x2: jx + 10 * s, y2: jy + 10 * s });
-          const lbl = jn.querySelector('.jn-label');
-          if (lbl && lbl.textContent) {
-            const ly = parseFloat(lbl.getAttribute('y') || '-11.5');
-            const hw = (this._estimateLocalTextWidth(lbl.textContent, 11.5, 0.5) * 0.5 + 8) * s;
+          const lbl = jn.find({"tags":["jn-label"]});
+          if (lbl && lbl.label) {
+            const ly = parseFloat(lbl.get('y') || '-11.5');
+            const hw = (this._estimateLocalTextWidth(lbl.label, 11.5, 0.5) * 0.5 + 8) * s;
             occupied.push({
               x1: jx - hw,
               y1: jy + (ly - 8) * s,
@@ -5537,15 +5516,15 @@ export class HistoricalAtlasController {
         }
       });
     }
-    if (this.grpGenealogy && this.grpGenealogy.firstChild) {
-      this.grpGenealogy.querySelectorAll('g[data-x]').forEach((gn) => {
-        const gx = parseFloat(gn.getAttribute('data-x'));
-        const gy = parseFloat(gn.getAttribute('data-y'));
+    if (this.grpGenealogy && this.grpGenealogy.first) {
+      this.grpGenealogy.findAll({"kind":"group","metadata":{"x":true}}).forEach((gn) => {
+        const gx = parseFloat(gn.get('data-x'));
+        const gy = parseFloat(gn.get('data-y'));
         if (!isNaN(gx) && !isNaN(gy)) {
-          const lbl = gn.querySelector('.trace-pin-label');
-          if (lbl && lbl.textContent) {
+          const lbl = gn.find({"tags":["trace-pin-label"]});
+          if (lbl && lbl.label) {
             pinnedCoords.push([gx, gy]);
-            const hw = (this._estimateLocalTextWidth(lbl.textContent, 11, 0.5) * 0.5 + 8) * s;
+            const hw = (this._estimateLocalTextWidth(lbl.label, 11, 0.5) * 0.5 + 8) * s;
             occupied.push({
               x1: gx - hw,
               y1: gy + 10 * s,
@@ -5558,23 +5537,23 @@ export class HistoricalAtlasController {
     }
 
     const layoutSettlementLabel = (node, allowCull, maxOverlapRatio = 0.14) => {
-      const cx = parseFloat(node.getAttribute('data-x'));
-      const cy = parseFloat(node.getAttribute('data-y'));
-      node.setAttribute('transform', `translate(${cx.toFixed(1)},${cy.toFixed(1)}) scale(${invScale})`);
-      const isPass = node.classList.contains('is-pass');
+      const cx = parseFloat(node.get('data-x'));
+      const cy = parseFloat(node.get('data-y'));
+      node.set('transform', `translate(${cx.toFixed(1)},${cy.toFixed(1)}) scale(${invScale})`);
+      const isPass = node.tags.contains('is-pass');
       if (isPass ? !showCorridors : !showSettlements) return;
 
-      const nameEl = node.querySelector('.name');
+      const nameEl = node.find({tags: ['name']});
       if (!nameEl) return;
       if (pinnedCoords.some(([px, py]) => Math.hypot(cx - px, cy - py) < 4.5)) {
-        node.classList.add('is-label-crowded');
+        node.tags.add('is-label-crowded');
         return;
       }
-      const tier = node.dataset.tier || '1';
+      const tier = node.metadata.tier || '1';
       const f1 = tier === '0' ? 9.6 : tier === '2' || tier === 'pass' ? 7.4 : 8.2;
-      const wLocal = this._estimateLocalTextWidth(nameEl.textContent, f1, 0.45) + 7;
+      const wLocal = this._estimateLocalTextWidth(nameEl.label, f1, 0.45) + 7;
 
-      const hasHintTag = node.classList.contains('has-trace-hint');
+      const hasHintTag = node.tags.contains('has-trace-hint');
       if (hasHintTag) {
         occupied.push({
           x1: cx - 64 * s,
@@ -5583,7 +5562,7 @@ export class HistoricalAtlasController {
           y2: cy + 28 * s,
         });
       }
-      const pref = node.dataset.prefAlign || 'r';
+      const pref = node.metadata.prefAlign || 'r';
       const dirs = [hasHintTag && pref === 'b' ? 't' : pref];
       for (const d of hasHintTag ? ['r', 'l', 't'] : ['r', 'l', 'b', 't']) {
         if (!dirs.includes(d)) dirs.push(d);
@@ -5656,25 +5635,25 @@ export class HistoricalAtlasController {
 
       const boxArea = Math.max(1, (best.box.x2 - best.box.x1) * (best.box.y2 - best.box.y1));
       if (allowCull && bestOverlap > boxArea * maxOverlapRatio) {
-        node.classList.add('is-label-crowded');
+        node.tags.add('is-label-crowded');
         return;
       }
-      node.classList.remove('is-label-crowded');
-      nameEl.setAttribute('x', String(best.dx));
-      nameEl.setAttribute('y', String(best.dy1));
-      nameEl.setAttribute('text-anchor', best.anchor);
+      node.tags.remove('is-label-crowded');
+      nameEl.set('x', String(best.dx));
+      nameEl.set('y', String(best.dy1));
+      nameEl.set('text-anchor', best.anchor);
       occupied.push(best.box);
     };
 
     // Tier 1: Capitals first (never culled), then Tier-1 primary cities (gently culled on narrow mobile overview if unavoidable)
     for (const node of settlementNodes) {
-      if (node.classList.contains('is-capital')) layoutSettlementLabel(node, false);
+      if (node.tags.contains('is-capital')) layoutSettlementLabel(node, false);
     }
     for (const node of settlementNodes) {
       if (
-        !node.classList.contains('is-capital') &&
-        !node.classList.contains('is-tier2') &&
-        !node.classList.contains('is-pass')
+        !node.tags.contains('is-capital') &&
+        !node.tags.contains('is-tier2') &&
+        !node.tags.contains('is-pass')
       ) {
         layoutSettlementLabel(node, isNarrowMobile && z < 3.4, 0.26);
       }
@@ -5682,26 +5661,26 @@ export class HistoricalAtlasController {
 
     // Tier 1b: Strategic mountain/river passes (controlled by 关河丝路 layer; only visible when zoomed >= passMinZoom or traced)
     for (const node of settlementNodes) {
-      if (node.classList.contains('is-pass')) {
-        if (showCorridors && (showPasses || node.classList.contains('is-pass-trace'))) {
-          layoutSettlementLabel(node, !node.classList.contains('is-pass-trace'), 0.14);
+      if (node.tags.contains('is-pass')) {
+        if (showCorridors && (showPasses || node.tags.contains('is-pass-trace'))) {
+          layoutSettlementLabel(node, !node.tags.contains('is-pass-trace'), 0.14);
         } else {
-          const cx = parseFloat(node.getAttribute('data-x'));
-          const cy = parseFloat(node.getAttribute('data-y'));
-          node.setAttribute('transform', `translate(${cx.toFixed(1)},${cy.toFixed(1)}) scale(${invScale})`);
+          const cx = parseFloat(node.get('data-x'));
+          const cy = parseFloat(node.get('data-y'));
+          node.set('transform', `translate(${cx.toFixed(1)},${cy.toFixed(1)}) scale(${invScale})`);
         }
       }
     }
 
     // Tier 2: Polity captions (main & rival first, then protectorate & neighbor)
-    const polNodes = Array.from(this.grpPolities.querySelectorAll('.polity-caption')).sort(
+    const polNodes = Array.from(this.grpPolities.findAll({"tags":["polity-caption"]})).sort(
       (a, b) => {
         const rank = (el) =>
-          el.classList.contains('main')
+          el.tags.contains('main')
             ? 0
-            : el.classList.contains('rival')
+            : el.tags.contains('rival')
               ? 1
-              : el.classList.contains('protectorate')
+              : el.tags.contains('protectorate')
                 ? 2
                 : 3;
         return rank(a) - rank(b);
@@ -5750,22 +5729,22 @@ export class HistoricalAtlasController {
     ];
 
     for (const node of polNodes) {
-      const cssFontPx = node.classList.contains('neighbor')
+      const cssFontPx = node.tags.contains('neighbor')
         ? 14
-        : node.classList.contains('protectorate')
+        : node.tags.contains('protectorate')
           ? 12
-          : node.classList.contains('rival')
+          : node.tags.contains('rival')
             ? 15
             : 19;
 
-      const baseX = parseFloat(node.getAttribute('data-base-x') || node.getAttribute('data-x'));
-      const baseY = parseFloat(node.getAttribute('data-base-y') || node.getAttribute('data-y'));
-      const ls = node.classList.contains('neighbor')
+      const baseX = parseFloat(node.get('data-base-x') || node.get('data-x'));
+      const baseY = parseFloat(node.get('data-base-y') || node.get('data-y'));
+      const ls = node.tags.contains('neighbor')
         ? 2.0
-        : node.classList.contains('protectorate')
+        : node.tags.contains('protectorate')
           ? 1.4
           : 3.2;
-      const hw = (this._estimateLocalTextWidth(node.textContent, cssFontPx, ls) * 0.5 + 5) * s;
+      const hw = (this._estimateLocalTextWidth(node.label, cssFontPx, ls) * 0.5 + 5) * s;
       const hh = (cssFontPx * 0.56 + 3.5) * s;
 
       let bestX = baseX;
@@ -5819,19 +5798,19 @@ export class HistoricalAtlasController {
         }
       }
 
-      node.setAttribute('data-x', bestX.toFixed(1));
-      node.setAttribute('data-y', bestY.toFixed(1));
-      node.setAttribute('transform', `translate(${bestX.toFixed(1)},${bestY.toFixed(1)}) scale(${invScale})`);
+      node.set('data-x', bestX.toFixed(1));
+      node.set('data-y', bestY.toFixed(1));
+      node.set('transform', `translate(${bestX.toFixed(1)},${bestY.toFixed(1)}) scale(${invScale})`);
       occupied.push(bestBox);
     }
 
     // Tier 2b: Modern neighboring country watermarks (dodge ancient polities/cities or hide when same-named historical polity is active)
-    const showPolities = !this.grpPolities.classList.contains('is-hidden');
+    const showPolities = !this.grpPolities.tags.contains('is-hidden');
     const activePolityNames = new Set();
     if (showPolities) {
       for (const pNode of polNodes) {
-        if (pNode.dataset && pNode.dataset.polityTitle) {
-          activePolityNames.add(pNode.dataset.polityTitle);
+        if (pNode.metadata && pNode.metadata.polityTitle) {
+          activePolityNames.add(pNode.metadata.polityTitle);
         }
       }
     }
@@ -5850,16 +5829,16 @@ export class HistoricalAtlasController {
       [26, 0],
       [-26, 0],
     ];
-    if (this.grpNeighbors && typeof this.grpNeighbors.querySelectorAll === 'function') {
-      this.grpNeighbors.querySelectorAll('.neighbor-caption').forEach((node) => {
-        const baseX = parseFloat(node.getAttribute('data-base-x') || node.getAttribute('data-x'));
-        const baseY = parseFloat(node.getAttribute('data-base-y') || node.getAttribute('data-y'));
+    if (this.grpNeighbors && typeof this.grpNeighbors.findAll === 'function') {
+      this.grpNeighbors.findAll({"tags":["neighbor-caption"]}).forEach((node) => {
+        const baseX = parseFloat(node.get('data-base-x') || node.get('data-x'));
+        const baseY = parseFloat(node.get('data-base-y') || node.get('data-y'));
         if (isNaN(baseX) || isNaN(baseY)) return;
-        if (showPolities && node.dataset && node.dataset.rawName && activePolityNames.has(node.dataset.rawName)) {
-          node.classList.add('is-crowded-hidden');
+        if (showPolities && node.metadata && node.metadata.rawName && activePolityNames.has(node.metadata.rawName)) {
+          node.tags.add('is-crowded-hidden');
           return;
         }
-        const hw = (this._estimateLocalTextWidth(node.textContent, 8.0, 0.8) * 0.5 + 4) * s;
+        const hw = (this._estimateLocalTextWidth(node.label, 8.0, 0.8) * 0.5 + 4) * s;
         const hh = 5.8 * s;
         let bestX = baseX;
         let bestY = baseY;
@@ -5879,10 +5858,10 @@ export class HistoricalAtlasController {
             if (ov < 0.05) break;
           }
         }
-        node.classList.remove('is-crowded-hidden');
-        node.setAttribute('data-x', bestX.toFixed(1));
-        node.setAttribute('data-y', bestY.toFixed(1));
-        node.setAttribute('transform', `translate(${bestX.toFixed(1)},${bestY.toFixed(1)}) scale(${invScale})`);
+        node.tags.remove('is-crowded-hidden');
+        node.set('data-x', bestX.toFixed(1));
+        node.set('data-y', bestY.toFixed(1));
+        node.set('transform', `translate(${bestX.toFixed(1)},${bestY.toFixed(1)}) scale(${invScale})`);
         occupied.push(bestBox);
       });
     }
@@ -5899,15 +5878,15 @@ export class HistoricalAtlasController {
       [-12, 9],
       [12, 9],
     ];
-    this.svg.querySelectorAll('.corridor-caption').forEach((node) => {
-      const baseX = parseFloat(node.getAttribute('data-base-x') || node.getAttribute('data-x'));
-      const baseY = parseFloat(node.getAttribute('data-base-y') || node.getAttribute('data-y'));
+    this.scene.findAll({"tags":["corridor-caption"]}).forEach((node) => {
+      const baseX = parseFloat(node.get('data-base-x') || node.get('data-x'));
+      const baseY = parseFloat(node.get('data-base-y') || node.get('data-y'));
       if (isNaN(baseX)) return;
       if (!showCorridors) {
-        node.setAttribute('transform', `translate(${baseX.toFixed(1)},${baseY.toFixed(1)}) scale(${invScale})`);
+        node.set('transform', `translate(${baseX.toFixed(1)},${baseY.toFixed(1)}) scale(${invScale})`);
         return;
       }
-      const hw = (this._estimateLocalTextWidth(node.textContent, 8.2, 1.4) * 0.5 + 3) * s;
+      const hw = (this._estimateLocalTextWidth(node.label, 8.2, 1.4) * 0.5 + 3) * s;
       const hh = 5.2 * s;
       let placed = false;
       for (let i = 0; i < corrOffsets.length; i++) {
@@ -5916,30 +5895,30 @@ export class HistoricalAtlasController {
         const cy = baseY + oy * s;
         const candBox = { x1: cx - hw, y1: cy - hh, x2: cx + hw, y2: cy + hh };
         if (overlapArea(candBox) <= (candBox.x2 - candBox.x1) * (candBox.y2 - candBox.y1) * 0.08) {
-          node.setAttribute('data-x', cx.toFixed(1));
-          node.setAttribute('data-y', cy.toFixed(1));
-          node.setAttribute('transform', `translate(${cx.toFixed(1)},${cy.toFixed(1)}) scale(${invScale})`);
-          node.classList.remove('is-crowded-hidden');
+          node.set('data-x', cx.toFixed(1));
+          node.set('data-y', cy.toFixed(1));
+          node.set('transform', `translate(${cx.toFixed(1)},${cy.toFixed(1)}) scale(${invScale})`);
+          node.tags.remove('is-crowded-hidden');
           occupied.push(candBox);
           placed = true;
           break;
         }
       }
       if (!placed) {
-        node.setAttribute('transform', `translate(${baseX.toFixed(1)},${baseY.toFixed(1)}) scale(${invScale})`);
-        node.classList.add('is-crowded-hidden');
+        node.set('transform', `translate(${baseX.toFixed(1)},${baseY.toFixed(1)}) scale(${invScale})`);
+        node.tags.add('is-crowded-hidden');
       }
     });
 
     // Tier 4: Tier-2 secondary cities (visible when z >= tier2MinZoom or traced; auto-flip or cull text if crowded)
     for (const node of settlementNodes) {
-      if (node.classList.contains('is-tier2')) {
-        if (showTier2 || node.classList.contains('is-trace-city')) {
-          layoutSettlementLabel(node, !node.classList.contains('is-trace-city'));
+      if (node.tags.contains('is-tier2')) {
+        if (showTier2 || node.tags.contains('is-trace-city')) {
+          layoutSettlementLabel(node, !node.tags.contains('is-trace-city'));
         } else {
-          const cx = parseFloat(node.getAttribute('data-x'));
-          const cy = parseFloat(node.getAttribute('data-y'));
-          node.setAttribute('transform', `translate(${cx.toFixed(1)},${cy.toFixed(1)}) scale(${invScale})`);
+          const cx = parseFloat(node.get('data-x'));
+          const cy = parseFloat(node.get('data-y'));
+          node.set('transform', `translate(${cx.toFixed(1)},${cy.toFixed(1)}) scale(${invScale})`);
         }
       }
     }
@@ -5964,14 +5943,14 @@ export class HistoricalAtlasController {
       [-24, 18],
       [24, 18],
     ];
-    this.svg.querySelectorAll('.region-caption').forEach((node) => {
-      const baseX = parseFloat(node.getAttribute('data-base-x') || node.getAttribute('data-x'));
-      const baseY = parseFloat(node.getAttribute('data-base-y') || node.getAttribute('data-y'));
+    this.scene.findAll({"tags":["region-caption"]}).forEach((node) => {
+      const baseX = parseFloat(node.get('data-base-x') || node.get('data-x'));
+      const baseY = parseFloat(node.get('data-base-y') || node.get('data-y'));
       if (!showPrefectures) {
-        node.setAttribute('transform', `translate(${baseX.toFixed(1)},${baseY.toFixed(1)}) scale(${invScale})`);
+        node.set('transform', `translate(${baseX.toFixed(1)},${baseY.toFixed(1)}) scale(${invScale})`);
         return;
       }
-      const hw = (this._estimateLocalTextWidth(node.textContent, 8.8, 1.8) * 0.5 + 3) * s;
+      const hw = (this._estimateLocalTextWidth(node.label, 8.8, 1.8) * 0.5 + 3) * s;
       const hh = 6.2 * s;
       let placed = false;
       for (let i = 0; i < regOffsets.length; i++) {
@@ -5984,23 +5963,23 @@ export class HistoricalAtlasController {
         }
         const candBox = { x1: cx - hw, y1: cy - hh, x2: cx + hw, y2: cy + hh };
         if (overlapArea(candBox) <= (candBox.x2 - candBox.x1) * (candBox.y2 - candBox.y1) * 0.05) {
-          node.setAttribute('data-x', cx.toFixed(1));
-          node.setAttribute('data-y', cy.toFixed(1));
-          node.setAttribute('transform', `translate(${cx.toFixed(1)},${cy.toFixed(1)}) scale(${invScale})`);
-          node.classList.remove('is-crowded-hidden');
+          node.set('data-x', cx.toFixed(1));
+          node.set('data-y', cy.toFixed(1));
+          node.set('transform', `translate(${cx.toFixed(1)},${cy.toFixed(1)}) scale(${invScale})`);
+          node.tags.remove('is-crowded-hidden');
           occupied.push(candBox);
           placed = true;
           break;
         }
       }
       if (!placed) {
-        node.setAttribute('transform', `translate(${baseX.toFixed(1)},${baseY.toFixed(1)}) scale(${invScale})`);
-        node.classList.add('is-crowded-hidden');
+        node.set('transform', `translate(${baseX.toFixed(1)},${baseY.toFixed(1)}) scale(${invScale})`);
+        node.tags.add('is-crowded-hidden');
       }
     });
 
-    this.grpProvNames.querySelectorAll('.province-caption').forEach((node) => {
-      node.setAttribute('font-size', (9.5 * s).toFixed(1));
+    this.grpProvNames.findAll({"tags":["province-caption"]}).forEach((node) => {
+      node.set('font-size', (9.5 * s).toFixed(1));
     });
   }
 
@@ -6038,7 +6017,7 @@ export class HistoricalAtlasController {
     this.activeCustomRoute = null;
     this.customRouteStopIdx = -1;
     if (this.grpJourney && !this.activePerson) {
-      this.grpJourney.innerHTML = '';
+      this.grpJourney.clearLayers();
     }
     if (this.journeyCard) {
       this.journeyCard.classList.add('is-hidden');
@@ -6186,7 +6165,7 @@ export class HistoricalAtlasController {
     this._recordGestureMove();
     const [mx, my] =
       clientX !== undefined && clientY !== undefined
-        ? this._clientToSvgPoint(clientX, clientY)
+        ? this._clientToMapPoint(clientX, clientY)
         : [this.camera.x + this.camera.w * 0.5, this.camera.y + this.camera.h * 0.5];
     const nextW = Math.max(100, Math.min(1300, this.camera.w / factor));
     const k = nextW / this.camera.w;
@@ -6225,18 +6204,13 @@ export class HistoricalAtlasController {
 
   _mapViewportRect() {
     if (this.mapView && this.mapView.committing && this.mapView.viewportRect) return this.mapView.viewportRect;
-    return (this.mapView ? this.mapView.container : this.svg).getBoundingClientRect();
+    return this.mapView.container.getBoundingClientRect();
   }
 
-  _clientToSvgPoint(clientX, clientY) {
+  _clientToMapPoint(clientX, clientY) {
     const rect = this._mapViewportRect();
-    const scale = Math.min(rect.width / this.camera.w, rect.height / this.camera.h);
-    const padX = (rect.width - this.camera.w * scale) * 0.5;
-    const padY = (rect.height - this.camera.h * scale) * 0.5;
-    return [
-      this.camera.x + (clientX - rect.left - padX) / scale,
-      this.camera.y + (clientY - rect.top - padY) / scale,
-    ];
+    const point = this.mapView.map.containerPointToLatLng([clientX - rect.left, clientY - rect.top]);
+    return [point.lng, -point.lat];
   }
 
   // ---------------- Dual-Mode Challenge ----------------
@@ -6412,16 +6386,16 @@ export class HistoricalAtlasController {
       lblChal.textContent =
         this.locale === 'en' ? 'Quiz Active · Click to Exit' : '挑战进行中 · 点击退出';
     }
-    this.svg.classList.add('is-crosshair');
-    this.grpSettlements.classList.add('is-hidden');
-    if (this.grpMilestones) this.grpMilestones.classList.add('is-hidden');
+    this.scene.tags.add('is-crosshair');
+    this.grpSettlements.tags.add('is-hidden');
+    if (this.grpMilestones) this.grpMilestones.tags.add('is-hidden');
     this._id('act-next-round').onclick = null;
     this.presentChallengeRound();
   }
 
   stopChallenge(keepPaneState = false) {
     this.challenge = null;
-    this.grpChallenge.innerHTML = '';
+    this.grpChallenge.clearLayers();
     this._id('challenge-card').classList.add('is-hidden');
     const vf = this._id('viewport-frame');
     if (vf) vf.classList.remove('has-active-challenge', 'is-challenge-answered');
@@ -6435,12 +6409,12 @@ export class HistoricalAtlasController {
       lblChal.textContent =
         this.locale === 'en' ? 'Map Pinpoint · Ancient Place Quiz' : '舆图寻址 · 古地名小试';
     }
-    this.svg.classList.remove('is-crosshair');
+    this.scene.tags.remove('is-crosshair');
     const chkSettle = this._id('chk-settlements');
-    this.grpSettlements.classList.toggle('is-hidden', Boolean(chkSettle && !chkSettle.checked));
+    this.grpSettlements.tags.toggle('is-hidden', Boolean(chkSettle && !chkSettle.checked));
     const chkMilestones = this._id('chk-milestones');
     if (this.grpMilestones) {
-      this.grpMilestones.classList.toggle(
+      this.grpMilestones.tags.toggle(
         'is-hidden',
         Boolean(chkMilestones && !chkMilestones.checked)
       );
@@ -6524,7 +6498,7 @@ export class HistoricalAtlasController {
 
   presentChallengeRound() {
     const q = this.challenge;
-    this.grpChallenge.innerHTML = '';
+    this.grpChallenge.clearLayers();
     q.answered = false;
     q.finished = false;
     q.pendingGuess = null;
@@ -6551,26 +6525,26 @@ export class HistoricalAtlasController {
       roundYear = cur.settlement.vanish;
     }
     this.jumpToYear(this._clampYearToDynasty(cur.dynasty, roundYear));
-    this.grpSettlements.classList.add('is-hidden');
-    if (this.grpMilestones) this.grpMilestones.classList.add('is-hidden');
+    this.grpSettlements.tags.add('is-hidden');
+    if (this.grpMilestones) this.grpMilestones.tags.add('is-hidden');
     this._id('challenge-result').classList.add('is-hidden');
     this._renderChallengeQuestionText();
   }
 
-  _previewLocatePin(svgX, svgY) {
+  _previewLocatePin(mapX, mapY) {
     const q = this.challenge;
     if (!q || q.answered) return;
-    q.pendingGuess = [svgX, svgY];
-    this.grpChallenge.innerHTML = '';
+    q.pendingGuess = [mapX, mapY];
+    this.grpChallenge.clearLayers();
 
-    const gPin = this._svgNode(
+    const gPin = this._mapElement(
       'g',
-      { 'data-x': svgX.toFixed(1), 'data-y': svgY.toFixed(1) },
+      { 'data-x': mapX.toFixed(1), 'data-y': mapY.toFixed(1) },
       this.grpChallenge
     );
-    this._svgNode('circle', { class: 'guess-preview-ring', r: 10 }, gPin);
-    this._svgNode('circle', { class: 'guess-pin', r: 4.5 }, gPin);
-    this._rescaleSvgTypography();
+    this._mapElement('circle', { class: 'guess-preview-ring', r: 10 }, gPin);
+    this._mapElement('circle', { class: 'guess-pin', r: 4.5 }, gPin);
+    this._layoutMapLabels();
 
     this._id('challenge-verdict').textContent =
       this.locale === 'en'
@@ -6600,8 +6574,8 @@ export class HistoricalAtlasController {
         ? `${ansAncEn} (${ansModEn})`
         : `${cur.settlement.ancient}（今${cur.settlement.modern}）`;
     if (this.grpChallenge) {
-      const textNode = this.grpChallenge.querySelector('text');
-      if (textNode) textNode.textContent = aLabelText;
+      const textNode = this.grpChallenge.find({"kind":"text"});
+      if (textNode) textNode.label = aLabelText;
     }
     this._id('challenge-points').textContent = `${this.uiStr('quiz_score', '得分')} ${q.score}`;
     const comment =
@@ -6627,24 +6601,24 @@ export class HistoricalAtlasController {
     this._id('challenge-result').classList.remove('is-hidden');
   }
 
-  _evaluateLocateClick(svgX, svgY) {
+  _evaluateLocateClick(mapX, mapY) {
     const q = this.challenge;
     if (!q || q.answered) return;
     q.answered = true;
     q.pendingGuess = null;
-    this.grpChallenge.innerHTML = '';
+    this.grpChallenge.clearLayers();
     const vf = this._id('viewport-frame');
     if (vf) vf.classList.add('is-challenge-answered');
     const chkMilestones = this._id('chk-milestones');
     if (this.grpMilestones) {
-      this.grpMilestones.classList.toggle(
+      this.grpMilestones.tags.toggle(
         'is-hidden',
         Boolean(chkMilestones && !chkMilestones.checked)
       );
     }
 
     const cur = q.deck[q.index];
-    const guessGeo = this.projector.toGeo(svgX, svgY);
+    const guessGeo = this.projector.toGeo(mapX, mapY);
     const km = Math.round(this.projector.greatCircleKm(guessGeo, cur.settlement.coord));
     const pts =
       km <= 80
@@ -6667,37 +6641,37 @@ export class HistoricalAtlasController {
     const radPx =
       (200 / (111 * Math.cos(cur.settlement.coord[1] * DEG_TO_RAD))) * this.projector.scale;
 
-    this._svgNode(
+    this._mapElement(
       'circle',
       { class: 'target-ring', cx: ax.toFixed(1), cy: ay.toFixed(1), r: radPx.toFixed(1) },
       this.grpChallenge
     );
-    this._svgNode(
+    this._mapElement(
       'line',
       {
         class: 'error-line',
-        x1: svgX.toFixed(1),
-        y1: svgY.toFixed(1),
+        x1: mapX.toFixed(1),
+        y1: mapY.toFixed(1),
         x2: ax.toFixed(1),
         y2: ay.toFixed(1),
       },
       this.grpChallenge
     );
 
-    const gPin = this._svgNode(
+    const gPin = this._mapElement(
       'g',
-      { 'data-x': svgX.toFixed(1), 'data-y': svgY.toFixed(1) },
+      { 'data-x': mapX.toFixed(1), 'data-y': mapY.toFixed(1) },
       this.grpChallenge
     );
-    this._svgNode('circle', { class: 'guess-pin', r: 4.5 }, gPin);
+    this._mapElement('circle', { class: 'guess-pin', r: 4.5 }, gPin);
 
-    const aPin = this._svgNode(
+    const aPin = this._mapElement(
       'g',
       { 'data-x': ax.toFixed(1), 'data-y': ay.toFixed(1) },
       this.grpChallenge
     );
-    this._svgNode('circle', { class: 'answer-pin', r: 5 }, aPin);
-    const aLabel = this._svgNode(
+    this._mapElement('circle', { class: 'answer-pin', r: 5 }, aPin);
+    const aLabel = this._mapElement(
       'text',
       {
         x: 8,
@@ -6712,11 +6686,11 @@ export class HistoricalAtlasController {
         ? this.trModernCity(cur.settlement.ancient)
         : this.trTerm(cur.settlement.ancient);
     const ansModEn = cur.settlement.modernEn || this.trModernCity(cur.settlement.modern);
-    aLabel.textContent =
+    aLabel.label =
       this.locale === 'en'
         ? `${ansAncEn} (${ansModEn})`
         : `${cur.settlement.ancient}（今${cur.settlement.modern}）`;
-    this._rescaleSvgTypography();
+    this._layoutMapLabels();
     this._renderChallengeAnsweredVerdict();
   }
 
@@ -6839,7 +6813,7 @@ export class HistoricalAtlasController {
   _renderCartographicTrajectory(segments, curIdx, accentColor = '#bd2d22') {
     if (!this.grpJourney || !Array.isArray(segments) || !segments.length) return;
     const appendChevron = (seg, cls) => {
-      const g = this._svgNode(
+      const g = this._mapElement(
         'g',
         {
           class: `journey-dir-mark${cls ? ' ' + cls : ''}`,
@@ -6849,8 +6823,8 @@ export class HistoricalAtlasController {
         },
         this.grpJourney
       );
-      g.style.color = accentColor;
-      this._svgNode(
+      g.paint.color = accentColor;
+      this._mapElement(
         'path',
         { d: 'M-3.5 -2.45L2.75 0L-3.5 2.45L-1.85 0Z', class: 'journey-chevron' },
         g
@@ -6859,8 +6833,8 @@ export class HistoricalAtlasController {
 
     if (curIdx < 0) {
       const fullD = segments.map((s) => s.d).join(' ');
-      this._svgNode('path', { d: fullD, class: 'journey-track-halo' }, this.grpJourney);
-      this._svgNode(
+      this._mapElement('path', { d: fullD, class: 'journey-track-halo' }, this.grpJourney);
+      this._mapElement(
         'path',
         { d: fullD, class: 'journey-track-thread', stroke: accentColor },
         this.grpJourney
@@ -6881,13 +6855,13 @@ export class HistoricalAtlasController {
     const upcomingD = segments.filter((s) => s.toIdx > curIdx).map((s) => s.d).join(' ');
     const bgD = [passedD, upcomingD].filter(Boolean).join(' ');
     if (bgD) {
-      this._svgNode('path', { d: bgD, class: 'journey-track-halo' }, this.grpJourney);
+      this._mapElement('path', { d: bgD, class: 'journey-track-halo' }, this.grpJourney);
     }
     if (upcomingD) {
-      this._svgNode('path', { d: upcomingD, class: 'journey-track-upcoming' }, this.grpJourney);
+      this._mapElement('path', { d: upcomingD, class: 'journey-track-upcoming' }, this.grpJourney);
     }
     if (passedD) {
-      this._svgNode(
+      this._mapElement(
         'path',
         { d: passedD, class: 'journey-track-passed', stroke: '#b83327' },
         this.grpJourney
@@ -6901,12 +6875,12 @@ export class HistoricalAtlasController {
       }
     }
     if (focusSeg) {
-      this._svgNode(
+      this._mapElement(
         'path',
         { d: focusSeg.d, class: 'journey-track-halo is-focus' },
         this.grpJourney
       );
-      this._svgNode(
+      this._mapElement(
         'path',
         { d: focusSeg.d, class: 'journey-track-focus', stroke: '#c6281c' },
         this.grpJourney
@@ -7441,7 +7415,7 @@ export class HistoricalAtlasController {
     if ((item.kind === 'city' || item.kind === 'pass' || item.kind === 'gazetteer') && item.coord) {
       if (!this._id('chk-settlements').checked) {
         this._id('chk-settlements').checked = true;
-        this.grpSettlements.classList.remove('is-hidden');
+        this.grpSettlements.tags.remove('is-hidden');
       }
       const isDesktop = typeof window === 'undefined' || window.innerWidth > 900;
       const minCityZoom = isDesktop ? 2.4 : 3.25;
@@ -7462,7 +7436,7 @@ export class HistoricalAtlasController {
     } else if ((item.kind === 'prefecture' || item.kind === 'region') && item.coord) {
       if (!this._id('chk-prefectures').checked) {
         this._id('chk-prefectures').checked = true;
-        this.grpPrefectures.classList.remove('is-hidden');
+        this.grpPrefectures.tags.remove('is-hidden');
       }
       const [tx, ty] = this.projector.toScreen(item.coord[0], item.coord[1]);
       const w = Math.min(this.camera.w, 1000 / 1.95);
@@ -7471,12 +7445,12 @@ export class HistoricalAtlasController {
       if (item.prefTitle) {
         this.scope.timeout(() => {
           this.grpPrefectures
-            .querySelectorAll('.prefecture-shape.is-hovered')
-            .forEach((el) => el.classList.remove('is-hovered'));
-          const el = this.grpPrefectures.querySelector(
-            `.prefecture-shape[data-pref-title="${CSS.escape(item.prefTitle)}"]`
+            .findAll({"tags":["prefecture-shape","is-hovered"]})
+            .forEach((el) => el.tags.remove('is-hovered'));
+          const el = this.grpPrefectures.find(
+            { tags: ['prefecture-shape'], metadata: { prefTitle: item.prefTitle } }
           );
-          if (el) el.classList.add('is-hovered');
+          if (el) el.tags.add('is-hovered');
         }, 80);
       }
     } else if (item.kind === 'event' && item.milestone) {
@@ -7837,8 +7811,8 @@ export class HistoricalAtlasController {
 
     const bindToggle = (chkId, grpEl, inv = false) => {
       this.scope.listen(this._id(chkId), 'change', (e) => {
-        grpEl.classList.toggle('is-hidden', inv ? e.target.checked : !e.target.checked);
-        this._rescaleSvgTypography();
+        grpEl.tags.toggle('is-hidden', inv ? e.target.checked : !e.target.checked);
+        this._layoutMapLabels();
       });
     };
     const chkTerrain = this._id('chk-terrain');
@@ -7850,26 +7824,26 @@ export class HistoricalAtlasController {
     bindToggle('chk-provinces', this.grpProvinces);
     bindToggle('chk-prov-names', this.grpProvNames);
     this.scope.listen(this._id('chk-polities'), 'change', (e) => {
-      this.grpPolities.classList.toggle('is-hidden', !e.target.checked);
+      this.grpPolities.tags.toggle('is-hidden', !e.target.checked);
       if (this.grpGhostDiff) {
-        this.grpGhostDiff.classList.toggle('is-hidden', !e.target.checked);
+        this.grpGhostDiff.tags.toggle('is-hidden', !e.target.checked);
       }
-      this._rescaleSvgTypography();
+      this._layoutMapLabels();
     });
     bindToggle('chk-prefectures', this.grpPrefectures);
     this.scope.listen(this._id('chk-settlements'), 'change', (e) => {
       if (this.challenge) return;
-      this.grpSettlements.classList.toggle('is-hidden', !e.target.checked);
-      this._rescaleSvgTypography();
+      this.grpSettlements.tags.toggle('is-hidden', !e.target.checked);
+      this._layoutMapLabels();
     });
     this.scope.listen(this._id('chk-corridors'), 'change', (e) => {
-      this.grpCorridors.classList.toggle('is-hidden', !e.target.checked);
-      this.svg.classList.toggle('is-corridors-hidden', !e.target.checked);
-      this._rescaleSvgTypography();
+      this.grpCorridors.tags.toggle('is-hidden', !e.target.checked);
+      this.scene.tags.toggle('is-corridors-hidden', !e.target.checked);
+      this._layoutMapLabels();
       if (this.lastRenderedSnap) this._renderLegendBox(this.lastRenderedSnap);
     });
     this.scope.listen(this._id('chk-milestones'), 'change', (e) => {
-      this.grpMilestones.classList.toggle('is-hidden', !e.target.checked);
+      this.grpMilestones.tags.toggle('is-hidden', !e.target.checked);
       if (!e.target.checked) {
         this.closeMilestoneBalloon();
       } else {
@@ -7877,7 +7851,7 @@ export class HistoricalAtlasController {
         const cur = this.dynasties[this.dynastyIdx];
         if (cur) this._syncAutoMilestoneBalloon(cur);
       }
-      this._rescaleSvgTypography();
+      this._layoutMapLabels();
     });
 
     const togglePaneBtn = this._id('act-toggle-pane');
@@ -8100,43 +8074,8 @@ export class HistoricalAtlasController {
       }
     });
 
-    // SVG Zoom & Pan (Mouse Wheel + Single-Finger Pan + Two-Finger Pinch Zoom)
-    const viewportFrame = this._id('viewport-frame') || this.svg;
-    this.scope.listen(viewportFrame,
-      'wheel',
-      (e) => {
-        if (this.mapView) return;
-        if (
-          e.target &&
-          e.target.closest &&
-          e.target.closest(
-            '#genealogy-card, #journey-card, #milestone-balloon, #map-search-results, #challenge-card'
-          )
-        ) {
-          return;
-        }
-        e.preventDefault();
-        this._recordGestureMove();
-        const [mx, my] = this._clientToSvgPoint(e.clientX, e.clientY);
-        const rawDelta =
-          e.deltaMode === 1 ? e.deltaY * 18 : e.deltaMode === 2 ? e.deltaY * 240 : e.deltaY;
-        const clampedDelta = Math.max(-220, Math.min(220, rawDelta || 0));
-        const factor = Math.exp(-clampedDelta * 0.002);
-        const nextW = Math.max(100, Math.min(1300, this.camera.w / factor));
-        const k = nextW / this.camera.w;
-        this.camera = {
-          x: mx - (mx - this.camera.x) * k,
-          y: my - (my - this.camera.y) * k,
-          w: nextW,
-          h: this.camera.h * k,
-          zoom: 1000 / nextW,
-        };
-        this._applyCamera();
-      },
-      { passive: false }
-    );
-
-    const mapSurface = this.mapView ? this.mapView.container : this.svg;
+    // Leaflet owns mouse, touch and pinch navigation.
+    const mapSurface = this.mapView.container;
     this.activePointers = new Map();
     this.pinchState = null;
     this.longPressTimer = null;
@@ -8149,121 +8088,7 @@ export class HistoricalAtlasController {
       }
     };
 
-    this.scope.listen(mapSurface, 'pointerdown', (e) => {
-      if (this.mapView) { this.didPan = false; return; }
-      if (e.pointerType === 'mouse' && e.button !== 0) return;
-      this.activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-      this.svg.setPointerCapture(e.pointerId);
-
-      if (this.activePointers.size === 1) {
-        clearLongPress();
-        this.longPressTriggered = false;
-        this.didPan = false;
-        this.pinchState = null;
-        this.dragState = {
-          startX: e.clientX,
-          startY: e.clientY,
-          camX: this.camera.x,
-          camY: this.camera.y,
-          rect: this._mapViewportRect(),
-        };
-        if (e.pointerType === 'touch' && !this.challenge) {
-          const downX = e.clientX;
-          const downY = e.clientY;
-          this.longPressTimer = this.scope.timeout(() => {
-            this.longPressTimer = null;
-            if (!this.didPan && this.activePointers.size === 1 && !this.challenge) {
-              this.longPressTriggered = true;
-              const near = this._findNearestTouchNode(downX, downY, 24);
-              if (
-                near.settlementEl &&
-                near.settlementEl.dataset.lng &&
-                near.settlementEl.dataset.lat
-              ) {
-                this.openGenealogyAt(
-                  Number(near.settlementEl.dataset.lng),
-                  Number(near.settlementEl.dataset.lat)
-                );
-                return;
-              }
-              const [sx, sy] = this._clientToSvgPoint(downX, downY);
-              const [lng, lat] = this.projector.toGeo(sx, sy);
-              this.openGenealogyAt(lng, lat);
-            }
-          }, 460);
-        }
-      } else if (this.activePointers.size === 2) {
-        clearLongPress();
-        this.didPan = true;
-        this.dragState = null;
-        this.hoverTip.classList.add('is-hidden');
-        const pts = Array.from(this.activePointers.values());
-        const midX = (pts[0].x + pts[1].x) * 0.5;
-        const midY = (pts[0].y + pts[1].y) * 0.5;
-        const [svgMidX, svgMidY] = this._clientToSvgPoint(midX, midY);
-        this.pinchState = {
-          startDist: Math.max(10, Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y)),
-          svgMidX,
-          svgMidY,
-          camX: this.camera.x,
-          camY: this.camera.y,
-          camW: this.camera.w,
-          camH: this.camera.h,
-          rect: this._mapViewportRect(),
-        };
-      }
-    });
-
-    this.scope.listen(mapSurface, 'pointermove', (e) => {
-      if (this.activePointers.has(e.pointerId)) {
-        this.activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-      }
-
-      if (this.activePointers.size === 2 && this.pinchState) {
-        this._recordGestureMove();
-        this.lastPinchTime = Date.now();
-        const pts = Array.from(this.activePointers.values());
-        const dist = Math.max(10, Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y));
-        const factor = dist / this.pinchState.startDist;
-        const nextW = Math.max(100, Math.min(1300, this.pinchState.camW / factor));
-        const k = nextW / this.pinchState.camW;
-        const midX = (pts[0].x + pts[1].x) * 0.5;
-        const midY = (pts[0].y + pts[1].y) * 0.5;
-        const rect = this.pinchState.rect || this._mapViewportRect();
-        const scale = Math.min(rect.width / nextW, rect.height / (this.pinchState.camH * k));
-        const padX = (rect.width - nextW * scale) * 0.5;
-        const padY = (rect.height - this.pinchState.camH * k * scale) * 0.5;
-        this.camera = {
-          x: this.pinchState.svgMidX - (midX - rect.left - padX) / scale,
-          y: this.pinchState.svgMidY - (midY - rect.top - padY) / scale,
-          w: nextW,
-          h: this.pinchState.camH * k,
-          zoom: 1000 / nextW,
-        };
-        this._applyCamera();
-        return;
-      }
-
-      if (!this.dragState) return;
-      const dx = e.clientX - this.dragState.startX;
-      const dy = e.clientY - this.dragState.startY;
-      if (Math.hypot(dx, dy) > 4) {
-        clearLongPress();
-        this.didPan = true;
-        this._recordGestureMove();
-        this.svg.classList.add('is-panning');
-        if (e.pointerType === 'touch') {
-          this.hoverTip.classList.add('is-hidden');
-        }
-      }
-      if (this.didPan) {
-        const rect = this.dragState.rect || this._mapViewportRect();
-        const scale = Math.min(rect.width / this.camera.w, rect.height / this.camera.h);
-        this.camera.x = this.dragState.camX - dx / scale;
-        this.camera.y = this.dragState.camY - dy / scale;
-        this._applyCamera();
-      }
-    });
+    this.scope.listen(mapSurface, 'pointerdown', () => { this.didPan = false; });
 
     const inspectPointTooltip = (e) => {
       if (this.challenge && !this.challenge.answered) {
@@ -8276,18 +8101,19 @@ export class HistoricalAtlasController {
         ? this.mapView.elementsFromPoint(e.clientX, e.clientY)
         : [];
       const stack = rawStack.length ? rawStack : target ? [target] : [];
+      this.mapView?.annotations.setHover(stack);
       const findClosest = (sel) => {
         for (const el of stack) {
-          const hit = el && el.closest && el.closest(sel);
+          const hit = el && el.ancestor && el.ancestor(sel);
           if (hit) return hit;
         }
         return null;
       };
-      const journeyNodeEl = findClosest('.journey-node');
-      const settlementNameEl = findClosest('.settlement-node .name, .cap-hint-tag');
-      const settlementEl = findClosest('.settlement-node');
-      const corridorEl = findClosest('.corridor-line');
-      const milestoneEl = findClosest('.milestone-pin');
+      const journeyNodeEl = findClosest([{"tags":["journey-node"]}]);
+      const settlementNameEl = findClosest([{"tags":["name"],"within":{"tags":["settlement-node"]}},{"tags":["cap-hint-tag"]}]);
+      const settlementEl = findClosest([{"tags":["settlement-node"]}]);
+      const corridorEl = findClosest([{"tags":["corridor-line"]}]);
+      const milestoneEl = findClosest([{"tags":["milestone-pin"]}]);
       const cur = this.dynasties[this.dynastyIdx];
       const mHit = milestoneEl && cur ? this._resolvePinMilestone(cur, milestoneEl) : null;
       const coCity =
@@ -8296,7 +8122,7 @@ export class HistoricalAtlasController {
           : null;
 
       if (journeyNodeEl && this.activeCustomRoute) {
-        const sIdx = Number(journeyNodeEl.dataset.stopIdx);
+        const sIdx = Number(journeyNodeEl.metadata.stopIdx);
         const stop = this.activeCustomRoute[sIdx];
         if (stop) {
           const rawLabel = stop.query || stop.name;
@@ -8320,7 +8146,7 @@ export class HistoricalAtlasController {
           return;
         }
       } else if (journeyNodeEl && this.activePerson) {
-        const sIdx = Number(journeyNodeEl.dataset.stopIdx);
+        const sIdx = Number(journeyNodeEl.metadata.stopIdx);
         const ev = this.activePerson.events[sIdx];
         if (ev) {
           const isEn = this.locale === 'en';
@@ -8357,11 +8183,11 @@ export class HistoricalAtlasController {
             mHit.site ? SVG_ICONS.pin + ' ' + this.milestoneSite(cur, mHit) + ' · ' : ''
           }${actionHint}</div>`
         );
-      } else if (settlementEl && settlementEl.classList.contains('is-pass')) {
-        const pName = settlementEl.dataset.ancient;
-        const pMod = settlementEl.dataset.modern;
-        const pRange = settlementEl.dataset.remark;
-        const pChoke = settlementEl.dataset.chokepoint || '';
+      } else if (settlementEl && settlementEl.tags.contains('is-pass')) {
+        const pName = settlementEl.metadata.ancient;
+        const pMod = settlementEl.metadata.modern;
+        const pRange = settlementEl.metadata.remark;
+        const pChoke = settlementEl.metadata.chokepoint || '';
         const badge = this.locale === 'en' ? '[Strategic Pass]' : '【天下名关】';
         const traceHint =
           this.locale === 'en' ? 'Click to view pass history & battles ›' : '点击查看关隘形胜与历代战史 ›';
@@ -8372,9 +8198,9 @@ export class HistoricalAtlasController {
         );
       } else if (settlementEl || coCity) {
         const isModernDyn = Boolean(cur && (cur.key === 'roc' || cur.key === 'prc'));
-        const rawAnc = settlementEl ? settlementEl.dataset.ancient : coCity.ancient;
-        const rawMod = settlementEl ? settlementEl.dataset.modern : coCity.modern || '';
-        const rawRem = settlementEl ? settlementEl.dataset.remark : coCity.remark || '';
+        const rawAnc = settlementEl ? settlementEl.metadata.ancient : coCity.ancient;
+        const rawMod = settlementEl ? settlementEl.metadata.modern : coCity.modern || '';
+        const rawRem = settlementEl ? settlementEl.metadata.remark : coCity.remark || '';
         const anc = isModernDyn ? this.trModernCity(rawAnc) : this.trTerm(rawAnc);
         const mod = this.trModernCity(rawMod);
         const rem = this.trTerm(rawRem);
@@ -8388,16 +8214,16 @@ export class HistoricalAtlasController {
       } else if (corridorEl) {
         this._showHoverTip(
           e,
-          `<b>${corridorEl.dataset.corrTitle}</b><div class="tt-sub">${corridorEl.dataset.corrSummary || ''}</div>`
+          `<b>${corridorEl.metadata.corrTitle}</b><div class="tt-sub">${corridorEl.metadata.corrSummary || ''}</div>`
         );
       } else if (
-        stack.some((el) => el.dataset &&
-          (el.dataset.prefTitle || el.dataset.polityTitle ||
-            el.dataset.provTitle || el.dataset.countryTitle))
+        stack.some((el) => el.metadata &&
+          (el.metadata.prefTitle || el.metadata.polityTitle ||
+            el.metadata.provTitle || el.metadata.countryTitle))
       ) {
         const findData = (key) => {
-          const hit = stack.find((el) => el.dataset && el.dataset[key]);
-          return hit ? hit.dataset : null;
+          const hit = stack.find((el) => el.metadata && el.metadata[key]);
+          return hit ? hit.metadata : null;
         };
         const pref = findData('prefTitle');
         const pol = findData('polityTitle');
@@ -8409,12 +8235,12 @@ export class HistoricalAtlasController {
           pol &&
           pol.polityRole !== 'neighbor' &&
           this.grpPrefectures &&
-          !this.grpPrefectures.classList.contains('is-hidden') &&
+          !this.grpPrefectures.tags.contains('is-hidden') &&
           this.lastRenderedSnap &&
           Array.isArray(this.lastRenderedSnap.regions) &&
           this.lastRenderedSnap.regions.length
         ) {
-          const [sx, sy] = this._clientToSvgPoint(e.clientX, e.clientY);
+          const [sx, sy] = this._clientToMapPoint(e.clientX, e.clientY);
           const [lng, lat] = this.projector.toGeo(sx, sy);
           reg =
             this.lastRenderedSnap.regions.find(
@@ -8467,7 +8293,7 @@ export class HistoricalAtlasController {
           );
         }
         if (e.pointerType === 'touch') {
-          const [sx, sy] = this._clientToSvgPoint(e.clientX, e.clientY);
+          const [sx, sy] = this._clientToMapPoint(e.clientX, e.clientY);
           const [lng, lat] = this.projector.toGeo(sx, sy);
           const btnLbl = this.locale === 'en' ? 'Trace Place History ›' : '查看此地历代沿革 ›';
           lines.push(
@@ -8500,18 +8326,18 @@ export class HistoricalAtlasController {
       if (this.longPressTriggered) {
         this.longPressTriggered = false;
         this.dragState = null;
-        this.svg.classList.remove('is-panning');
+        this.scene.tags.remove('is-panning');
         return;
       }
       const wasPan = this.didPan;
       this.dragState = null;
-      this.svg.classList.remove('is-panning');
+      this.scene.tags.remove('is-panning');
       if (!wasPan && this.challenge && !this.challenge.answered) {
         if (this.lastPinchTime && Date.now() - this.lastPinchTime < 350) {
           return;
         }
         this._recordGestureClick();
-        const [sx, sy] = this._clientToSvgPoint(e.clientX, e.clientY);
+        const [sx, sy] = this._clientToMapPoint(e.clientX, e.clientY);
         if (e.pointerType === 'touch') {
           this._previewLocatePin(sx, sy);
         } else {
@@ -8530,16 +8356,16 @@ export class HistoricalAtlasController {
             const near = this._findNearestTouchNode(e.clientX, e.clientY, 24);
             if (
               near.settlementEl &&
-              near.settlementEl.dataset.lng &&
-              near.settlementEl.dataset.lat
+              near.settlementEl.metadata.lng &&
+              near.settlementEl.metadata.lat
             ) {
               this.openGenealogyAt(
-                Number(near.settlementEl.dataset.lng),
-                Number(near.settlementEl.dataset.lat)
+                Number(near.settlementEl.metadata.lng),
+                Number(near.settlementEl.metadata.lat)
               );
               return;
             }
-            const [sx, sy] = this._clientToSvgPoint(e.clientX, e.clientY);
+            const [sx, sy] = this._clientToMapPoint(e.clientX, e.clientY);
             const [lng, lat] = this.projector.toGeo(sx, sy);
             this.openGenealogyAt(lng, lat);
             return;
@@ -8554,18 +8380,18 @@ export class HistoricalAtlasController {
         const stack = rawStack.length ? rawStack : hitTarget ? [hitTarget] : [];
         const findClosest = (sel) => {
           for (const el of stack) {
-            const hit = el && el.closest && el.closest(sel);
+            const hit = el && el.ancestor && el.ancestor(sel);
             if (hit) return hit;
           }
           return null;
         };
-        let journeyNodeEl = findClosest('.journey-node');
+        let journeyNodeEl = findClosest([{"tags":["journey-node"]}]);
         if (!journeyNodeEl && e.pointerType === 'touch' && this.activePerson) {
           journeyNodeEl = this._findNearestPersonPin(e.clientX, e.clientY, 26);
         }
-        if (journeyNodeEl && journeyNodeEl.dataset.stopIdx !== undefined) {
+        if (journeyNodeEl && journeyNodeEl.metadata.stopIdx !== undefined) {
           if (this.activeCustomRoute) {
-            this.selectCustomRouteStop(Number(journeyNodeEl.dataset.stopIdx), true);
+            this.selectCustomRouteStop(Number(journeyNodeEl.metadata.stopIdx), true);
             return;
           }
           if (this.activePerson) {
@@ -8574,13 +8400,13 @@ export class HistoricalAtlasController {
               this.personTimer = null;
               this._updateAutoplayUi();
             }
-            this.selectPersonEvent(Number(journeyNodeEl.dataset.stopIdx), true);
+            this.selectPersonEvent(Number(journeyNodeEl.metadata.stopIdx), true);
             return;
           }
         }
-        const settlementNameEl = findClosest('.settlement-node .name, .cap-hint-tag');
-        let settlementEl = findClosest('.settlement-node');
-        let milestoneEl = findClosest('.milestone-pin');
+        const settlementNameEl = findClosest([{"tags":["name"],"within":{"tags":["settlement-node"]}},{"tags":["cap-hint-tag"]}]);
+        let settlementEl = findClosest([{"tags":["settlement-node"]}]);
+        let milestoneEl = findClosest([{"tags":["milestone-pin"]}]);
         if (e.pointerType === 'touch' && !settlementEl && !milestoneEl) {
           const near = this._findNearestTouchNode(e.clientX, e.clientY, 22);
           settlementEl = near.settlementEl;
@@ -8591,11 +8417,11 @@ export class HistoricalAtlasController {
         // Clicking the city name text (e.g. "长安"), the onboarding whisper tag, or a city dot without an overlapping event pin -> trace place history
         if (
           settlementEl &&
-          settlementEl.dataset.lng &&
-          settlementEl.dataset.lat &&
-          (settlementNameEl || !milestoneEl || settlementEl.classList.contains('has-trace-hint'))
+          settlementEl.metadata.lng &&
+          settlementEl.metadata.lat &&
+          (settlementNameEl || !milestoneEl || settlementEl.tags.contains('has-trace-hint'))
         ) {
-          this.openGenealogyAt(Number(settlementEl.dataset.lng), Number(settlementEl.dataset.lat));
+          this.openGenealogyAt(Number(settlementEl.metadata.lng), Number(settlementEl.metadata.lat));
           return;
         }
 
@@ -8605,7 +8431,7 @@ export class HistoricalAtlasController {
           const mIdx = m ? (cur.milestones || []).indexOf(m) : -1;
           if (m && m.coord) {
             const coCity = settlementEl
-              ? { coord: [Number(settlementEl.dataset.lng), Number(settlementEl.dataset.lat)] }
+              ? { coord: [Number(settlementEl.metadata.lng), Number(settlementEl.metadata.lat)] }
               : this._findCoLocatedSettlement(cur, m.coord[0], m.coord[1], 28);
             const targetCoord = coCity ? coCity.coord : m.coord;
             const alreadyOpen =
@@ -8641,7 +8467,7 @@ export class HistoricalAtlasController {
     this.scope.listen(mapSurface, 'dblclick', (e) => {
       if (this.challenge) return;
       this._recordGestureClick();
-      const [sx, sy] = this._clientToSvgPoint(e.clientX, e.clientY);
+      const [sx, sy] = this._clientToMapPoint(e.clientX, e.clientY);
       const [lng, lat] = this.projector.toGeo(sx, sy);
       this.openGenealogyAt(lng, lat);
     });
@@ -8657,8 +8483,8 @@ export class HistoricalAtlasController {
         this._hoverRaf = null;
         if (this.mapView && this.mapView.moving) return;
         this.grpPrefectures
-          .querySelectorAll('.prefecture-shape.is-hovered')
-          .forEach((el) => el.classList.remove('is-hovered'));
+          .findAll({"tags":["prefecture-shape","is-hovered"]})
+          .forEach((el) => el.tags.remove('is-hovered'));
         inspectPointTooltip(this._pendingHoverEvent);
       });
     });
@@ -8668,12 +8494,13 @@ export class HistoricalAtlasController {
       this._hoverRaf = null;
       if (e.pointerType === 'touch') return;
       this.hoverTip.classList.add('is-hidden');
+      this.mapView?.annotations.setHover([]);
     });
 
     this.scope.listen(window, 'resize', () => {
       const vw = window.innerWidth;
       if (this._lastViewportWidth === undefined || Math.abs(vw - this._lastViewportWidth) > 8) {
-        this._rescaleSvgTypography();
+        this._layoutMapLabels();
         this._syncTogglePaneButton();
       }
       this._updateScaleBar();
@@ -9355,7 +9182,7 @@ export class HistoricalAtlasController {
 
   _drawCustomRouteOverlay(stops) {
     if (!this.grpJourney || !Array.isArray(stops) || stops.length < 2) return null;
-    this.grpJourney.innerHTML = '';
+    this.grpJourney.clearLayers();
     const routeColor = '#9e2a2b';
     const segments = [];
     for (let i = 0; i < stops.length - 1; i++) {
@@ -9384,7 +9211,7 @@ export class HistoricalAtlasController {
         this.customRouteStopIdx >= 0
           ? idx === this.customRouteStopIdx
           : idx === 0 || idx === stops.length - 1;
-      const g = this._svgNode(
+      const g = this._mapElement(
         'g',
         {
           class: `journey-node ${isHighlighted ? 'is-current' : 'is-passed'}`,
@@ -9394,14 +9221,14 @@ export class HistoricalAtlasController {
         },
         this.grpJourney
       );
-      g.style.color = routeColor;
+      g.paint.color = routeColor;
 
       if (isHighlighted) {
-        this._svgNode('circle', { class: 'jn-pulse', r: 11.2 }, g);
+        this._mapElement('circle', { class: 'jn-pulse', r: 11.2 }, g);
       }
-      this._svgNode('circle', { class: 'jn-disc', r: isHighlighted ? 7.8 : 6.6 }, g);
-      const numTxt = this._svgNode('text', { class: 'jn-num', y: '0.5' }, g);
-      numTxt.textContent = String(idx + 1);
+      this._mapElement('circle', { class: 'jn-disc', r: isHighlighted ? 7.8 : 6.6 }, g);
+      const numTxt = this._mapElement('text', { class: 'jn-num', y: '0.5' }, g);
+      numTxt.label = String(idx + 1);
 
       let below = false;
       if (prevSx !== null && Math.hypot(sx - prevSx, sy - prevSy) < 90) {
@@ -9412,15 +9239,15 @@ export class HistoricalAtlasController {
       prevBelow = below;
 
       const lblY = below ? '17.5' : '-11';
-      const lblTxt = this._svgNode('text', { class: 'jn-label', x: '0', y: lblY }, g);
+      const lblTxt = this._mapElement('text', { class: 'jn-label', x: '0', y: lblY }, g);
       const rawLbl = st.query || st.name;
       const isEn = this.locale === 'en';
       const baseLbl = isEn ? this.trTerm(rawLbl) : rawLbl;
       const yrTag =
         st.year < 0 ? (isEn ? `${-st.year} BCE` : `前${-st.year}`) : `${st.year}`;
-      lblTxt.textContent = isMultiYear && st.year !== undefined ? `${baseLbl} (${yrTag})` : baseLbl;
+      lblTxt.label = isMultiYear && st.year !== undefined ? `${baseLbl} (${yrTag})` : baseLbl;
     });
-    this._rescaleSvgTypography();
+    this._layoutMapLabels();
     return { minX, minY, maxX, maxY };
   }
 
@@ -9436,8 +9263,8 @@ export class HistoricalAtlasController {
       this.customRouteStopIdx = -1;
     }
     this.activeCustomRoute = stops;
-    if (this.svg && typeof this.svg.querySelectorAll === 'function') {
-      this.svg.querySelectorAll('.cap-breath-ring, .cap-hint-tag').forEach((el) => el.remove());
+    if (this.scene && typeof this.scene.findAll === 'function') {
+      this.scene.findAll([{"tags":["cap-breath-ring"]},{"tags":["cap-hint-tag"]}]).forEach((el) => el.remove());
     }
 
     const bounds = this._drawCustomRouteOverlay(stops);
@@ -9929,8 +9756,8 @@ export class HistoricalAtlasController {
       this.closeMilestoneBalloon();
       afterFullSnapshots(() => {
         this.closeMilestoneBalloon();
-        let el = this.grpPrefectures.querySelector(
-          `.prefecture-shape[data-pref-title="${CSS.escape(targetPref)}"]`
+        let el = this.grpPrefectures.find(
+          { tags: ['prefecture-shape'], metadata: { prefTitle: targetPref } }
         );
         if (!el && targetPref) {
           const fold = (s) =>
@@ -9939,10 +9766,10 @@ export class HistoricalAtlasController {
               .replace(/\s+(?:prefecture|commandery|circuit|province|fu|zhou|jun)$/i, '')
               .replace(/['’‘`\-_.\s]+/g, '');
           const qFold = fold(targetPref);
-          const shapes = Array.from(this.grpPrefectures.querySelectorAll('.prefecture-shape'));
+          const shapes = Array.from(this.grpPrefectures.findAll({"tags":["prefecture-shape"]}));
           el =
             shapes.find((node) => {
-              const zh = node.dataset && node.dataset.prefTitle;
+              const zh = node.metadata && node.metadata.prefTitle;
               if (!zh) return false;
               const en = this._enDict(zh);
               return (
@@ -9954,8 +9781,8 @@ export class HistoricalAtlasController {
             }) || null;
         }
         if (el) {
-          el.classList.add('is-hovered');
-          const box = el.getBoundingClientRect();
+          el.tags.add('is-hovered');
+          const box = el.getScreenBounds();
           const cx = box.left + box.width * 0.55;
           const cy = box.top + box.height * 0.45;
           const cur = this.dynasties[this.dynastyIdx];
@@ -9965,13 +9792,13 @@ export class HistoricalAtlasController {
           let provName = '';
           const stack = this.mapView.elementsFromPoint(cx, cy);
           const polEl = stack.find(
-            (node) => node.dataset && node.dataset.polityTitle && node.dataset.polityRole !== 'neighbor'
+            (node) => node.metadata && node.metadata.polityTitle && node.metadata.polityRole !== 'neighbor'
           );
-          const resolvedPolTitle = (polEl && polEl.dataset.polityTitle) || (mainPol && mainPol.title) || '';
-          const provEl = stack.find((node) => node.dataset && node.dataset.provTitle);
-          if (provEl) provName = provEl.dataset.provTitle;
-          const pName = this.trTerm(el.dataset.prefTitle);
-          const pCat = el.dataset.prefCategory;
+          const resolvedPolTitle = (polEl && polEl.metadata.polityTitle) || (mainPol && mainPol.title) || '';
+          const provEl = stack.find((node) => node.metadata && node.metadata.provTitle);
+          if (provEl) provName = provEl.metadata.provTitle;
+          const pName = this.trTerm(el.metadata.prefTitle);
+          const pCat = el.metadata.prefCategory;
           const pEmigre = pCat === '侨州' || pCat === '侨郡';
           const lines = [
             `<b>${

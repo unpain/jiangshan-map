@@ -5,54 +5,7 @@ const atlas = useAtlas();
 
 <template>
 <div id="viewport-frame">
-        <div id="leaflet-map" aria-label="中国历史地图"></div>
-        <svg id="atlas-svg" class="terrain-active" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="中国历史地图">
-          <defs>
-            <filter id="label-halo" x="-20%" y="-20%" width="140%" height="140%">
-              <feMorphology operator="dilate" radius="1.4" in="SourceAlpha" result="dilated" />
-              <feFlood flood-color="#f6f1e6" flood-opacity="0.92" result="bg" />
-              <feComposite in="bg" in2="dilated" operator="in" result="outline" />
-              <feMerge>
-                <feMergeNode in="outline" />
-                <feMergeNode in="SourceGraphic" />
-              </feMerge>
-            </filter>
-            <linearGradient id="terrain-fade-h" x1="0" y1="0" x2="1" y2="0">
-              <stop offset="0%" class="terrain-edge-stop" />
-              <stop offset="4.5%" class="terrain-edge-stop" stop-opacity="0" />
-              <stop offset="94.5%" class="terrain-edge-stop" stop-opacity="0" />
-              <stop offset="100%" class="terrain-edge-stop" />
-            </linearGradient>
-            <linearGradient id="terrain-fade-v" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" class="terrain-edge-stop" />
-              <stop offset="4.5%" class="terrain-edge-stop" stop-opacity="0" />
-              <stop offset="94.5%" class="terrain-edge-stop" stop-opacity="0" />
-              <stop offset="100%" class="terrain-edge-stop" />
-            </linearGradient>
-          </defs>
-          <rect id="ocean-bg" x="-2000" y="-2000" width="6000" height="6000" />
-          <g id="camera-rig">
-            <g id="grp-terrain">
-              <image id="terrain-relief-img" href="assets/terrain_relief.webp" x="-80" y="-40" width="1160" height="780" preserveAspectRatio="none" />
-              <!-- Match the solid ocean background without an expensive SVG mask during zoom. -->
-              <rect x="-80" y="-40" width="1160" height="780" fill="url(#terrain-fade-h)" />
-              <rect x="-80" y="-40" width="1160" height="780" fill="url(#terrain-fade-v)" />
-            </g>
-            <g id="grp-neighbors"></g>
-            <g id="grp-provinces"></g>
-            <g id="grp-polities"></g>
-            <g id="grp-prefectures"></g>
-            <g id="grp-rivers"></g>
-            <g id="grp-ghost-diff"></g>
-            <g id="grp-corridors"></g>
-            <g id="grp-prov-names" class="is-hidden"></g>
-            <g id="grp-settlements"></g>
-            <g id="grp-milestones"></g>
-            <g id="grp-journey"></g>
-            <g id="grp-challenge"></g>
-            <g id="grp-genealogy"></g>
-          </g>
-        </svg>
+        <div id="leaflet-map" role="region" aria-label="中国历史地图"></div>
 
         <div id="map-search-box" role="search" aria-label="快速检索历史人物、古今地名、州府、帝王年号与舆图寻址挑战">
           <div class="search-input-wrap">

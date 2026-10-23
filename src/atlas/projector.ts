@@ -139,9 +139,9 @@ export class MercatorProjector {
       .join('');
   }
 
-  shapeToSvgPath(shapeObj: GeoShape | null, smooth = true) {
+  shapeToPath(shapeObj: GeoShape | null, smooth = true) {
     if (!shapeObj) return '';
-    const cacheKey = smooth ? '_svgPathSmooth' : '_svgPath';
+    const cacheKey = smooth ? '_smoothPathCommands' : '_pathCommands';
     if (shapeObj[cacheKey] !== undefined) return shapeObj[cacheKey];
     const fn = (r: Coordinate[], idx: number) => {
       const oriented = this._orientRing(r, idx > 0);

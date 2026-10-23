@@ -8,7 +8,7 @@
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview --host 127.0.0.1 --port 8765",
     "test": "node scripts/validate_atlas.js",
-    "test:e2e": "node scripts/validate_leaflet.cjs && node scripts/validate_vue.cjs",
+    "test:e2e": "node scripts/validate_leaflet.cjs && node scripts/validate_vue.cjs && node scripts/validate_canvas_annotations.cjs",
     "profile": "node scripts/profile_leaflet.cjs"
   },
   "dependencies": {

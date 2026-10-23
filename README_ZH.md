@@ -172,7 +172,7 @@ npm run test:e2e         # 对已启动的开发/预览服务做浏览器回归
 npm run profile         # 真实鼠标滚轮性能测试
 ```
 
-发布时部署 `dist/`，不能再直接用静态服务器运行源码根目录。生产包支持站点子目录部署；原有 `?year=`、`?person=` 等链接及 `window.atlasAPI` 保持兼容。浏览器测试默认使用 Edge；其他环境先运行 `npx playwright install chromium` 并设置 `ATLAS_BROWSER=chromium`。可用 `ATLAS_URL` 指定服务地址，`ATLAS_PYTHON` 指定 Python 可执行文件。
+发布时部署 `dist/`，不能再直接用静态服务器运行源码根目录。生产包支持站点子目录部署；原有 `?year=`、`?person=` 等链接及 `window.atlasAPI` 保持兼容。浏览器测试默认使用 Edge；其他环境先运行 `npx playwright install chromium` 并设置 `ATLAS_BROWSER=chromium`。可用 `ATLAS_URL` 指定服务地址，`ATLAS_PYTHON` 指定 Python 可执行文件。设置 `ATLAS_OFFLINE=1` 可让浏览器测试和性能测试仅加载本地资源，避免远程字体或统计服务阻塞测试。
 
 代码分层：`src/components/` 是 Vue 单文件组件；`src/composables/useAtlas.ts` 管理启动、命令和卸载；`src/atlas/leaflet-map.ts`、`projector.ts`、`scope.ts` 分别负责地图、投影和资源回收。`controller.js` 暂时保留历史领域逻辑，通过同名 `.d.ts` 提供 TS 接口；生成的数据包仍在 `js/`，数据脚本不受目录迁移影响。地图实例和大型数据不进入 Vue 深度响应式系统。
 
@@ -180,9 +180,13 @@ npm run profile         # 真实鼠标滚轮性能测试
 
 ## 地图渲染
 
-主地图使用 npm 管理的 Leaflet 1.9.4 管理拖拽、滚轮和双指缩放。`src/atlas/leaflet-map.ts` 通过 `CRS.Simple` 对接原有墨卡托投影坐标，将疆域、州郡、省界、河湖等密集路径缓存为 Canvas `Path2D`；滚轮采用连续插值；拖拽和连续缩放期间显示 Canvas 文字缓存，仅更新合成层变换，停下后按需清晰重绘、排字；纯平移不重新排字，长距离移动仅在画布缓冲区不足时补绘。装饰性的 SVG 呼吸/浮动动画改为静态提示，避免持续重绘。城市文字、人物轨迹和挑战标记保留轻量 SVG，旧的时间轴、搜索和分享坐标保持兼容。字体使用本地中文字体栈，避免中文网络字体分批加载时反复触发布局。没有额外在线底图请求。Leaflet 许可证保留在 assets/vendor/leaflet/LICENSE。
+主地图由 Leaflet 1.9.4 管理拖拽、滚轮和双指缩放，使用 `CRS.Simple` 对接原有墨卡托投影坐标。疆域、州郡、省界和河湖使用 Canvas `Path2D`，平移期间复用底层画布，缓冲区不足时补绘。
 
-现有数据校验：`node scripts/validate_atlas.js`。浏览器回归：启动本地 HTTP 服务后，在可加载 Playwright 的 Node 环境运行 `node scripts/validate_leaflet.cjs`；默认地址 `http://localhost:8765`、浏览器 Edge，可用 `ATLAS_URL` 和 `ATLAS_BROWSER` 调整。性能回归运行 `node scripts/profile_leaflet.cjs`：固定 1440×1000、DPR 2、明代 1415 年，发送 32 次真实浏览器滚轮事件（间隔 70ms），输出帧间隔、主线程长任务和重绘次数，并断言滚轮操作中不执行停止后的重绘、结束后只更新一次；不再用直接调用缩放函数的短循环代替滚轮测试。帧间隔是本机浏览器测试结果，不代表所有设备的实际帧率。
+所有地图对象都是 `src/atlas/layers/` 中的 Leaflet 图层，由有序图层组管理。地图文字、城市、关隘、事件、人物轨迹和挑战标记由 `src/atlas/canvas/` 中的自定义 Canvas 图层直接绘制。标注的路径、文字度量、样式和命中区域缓存为绘制指令，镜头变化通过 `requestAnimationFrame` 合并更新；绘制帧不读取地图 DOM 布局，不复制文字位图。缩放过程中逐帧更新字号、标签避让和地理描边，停止滚动后不再额外重排；纯平移复用已有文字布局。两层画布使用同一帧的镜头位置，避免标注和疆域错位。
+
+隐藏 SVG、DOM 选择器、计算样式采样和 MutationObserver 已全部删除。地图配色、字号、线型和响应式状态由 TypeScript 绘制配置管理，图层变化直接触发重绘；点击、悬停由 Canvas 命中检测交给对应的 Leaflet 地图对象。按钮小图标仍用 SVG。地图字体使用本地中文字体栈，没有额外在线底图请求；时间轴、搜索和分享坐标保持兼容。Leaflet 许可证保留在 assets/vendor/leaflet/LICENSE。
+
+数据校验运行 `npm test`。启动开发服务后，运行 `npm run test:e2e`，覆盖地图、Vue 生命周期和 Canvas 标注的实际点击、图层开关、Leaflet 图层移除与重新挂载、绘制配置更新、地图无 SVG 节点、双语、移动端寻址及连续平移；可用 `ATLAS_URL` 和 `ATLAS_BROWSER` 调整地址与浏览器。性能回归运行 `npm run profile`：固定 1440×1000、DPR 2、明代 1415 年，发送 32 次真实滚轮事件（间隔 70ms），输出帧间隔、长任务、绘制次数和图层偏移，并检查滚动期间持续更新文字布局、停止后文字位置和显隐状态不再变化。帧间隔是本机测试结果，不代表所有设备的实际帧率。
 
 ## GeoJSON 导出（供 Leaflet / MapLibre / QGIS 使用）
 

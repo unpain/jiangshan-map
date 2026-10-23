@@ -7,6 +7,10 @@ const { chromium } = require('playwright');
   const browser = await chromium.launch({ headless: true, ...(process.env.ATLAS_BROWSER === 'chromium' ? {} : { channel: process.env.ATLAS_BROWSER || 'msedge' }) });
   try {
     const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+    if (process.env.ATLAS_OFFLINE === '1') {
+      const origin = new URL(process.env.ATLAS_URL || 'http://localhost:8765').origin;
+      await page.route('**/*', route => new URL(route.request().url()).origin === origin ? route.continue() : route.abort());
+    }
     const errors = [];
     page.on('pageerror', error => errors.push(error.message));
     await page.goto(process.env.ATLAS_URL || 'http://localhost:8765', { waitUntil: 'domcontentloaded' });
@@ -38,26 +42,17 @@ const { chromium } = require('playwright');
       const p = app.mapView.map.latLngToContainerPoint([-y, x]);
       const r = app.mapView.container.getBoundingClientRect();
       return app.mapView.elementsFromPoint(r.left + p.x, r.top + p.y)
-        .filter(node => node.dataset?.polityTitle).map(node => node.dataset.polityTitle);
+        .filter(node => node.metadata?.polityTitle).map(node => node.metadata.polityTitle);
     });
     assert(hits.includes('秦'), 'Canvas geography must participate in existing hit testing');
-    // The SVG and Canvas must follow exactly the same transform, including
-    // fractional zoom and the deferred crisp redraw after interaction.
+    // Both Canvas layers must follow the same camera at fractional zoom.
     const alignmentError = () => {
       const app = atlasApp, view = app.mapView, r = view.container.getBoundingClientRect();
       const x = 600, y = 350;
       const expected = view.frame();
-      let labelError;
-      if (view.moving && view.annotationReady) {
-        const a = view.annotationFrame;
-        const screen = new DOMPoint(a.x + view.annotationPad.x + x * a.scale, a.y + view.annotationPad.y + y * a.scale)
-          .matrixTransform(new DOMMatrix(view.annotationCanvas.style.transform));
-        labelError = Math.hypot(screen.x - expected.x - x * expected.scale, screen.y - expected.y - y * expected.scale);
-      } else {
-        const screen = new DOMPoint(x, y).matrixTransform(app.svg.getScreenCTM());
-        labelError = Math.hypot(screen.x - r.left - expected.x - x * expected.scale,
-          screen.y - r.top - expected.y - y * expected.scale);
-      }
+      const a = view.annotationFrame;
+      const labelError = Math.hypot(a.x + x * a.scale - expected.x - x * expected.scale,
+        a.y + y * a.scale - expected.y - y * expected.scale);
       const c = view.canvasFrame;
       const canvas = new DOMPoint(c.x + view.canvasPad.x + x * c.scale,
         c.y + view.canvasPad.y + y * c.scale).matrixTransform(new DOMMatrix(view.canvas.style.transform));
@@ -66,8 +61,9 @@ const { chromium } = require('playwright');
       return Math.max(labelError, canvasError);
     };
     await page.evaluate(() => atlasApp.zoomBy(1.2, undefined, undefined, false));
+    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(resolve)));
     assert(await page.evaluate(alignmentError) < 1, 'Layers align during fractional zoom');
-    await page.waitForFunction(() => !atlasApp.mapView.moving && !atlasApp.mapView.raf);
+    await page.waitForFunction(() => !atlasApp.mapView.moving && !atlasApp.mapView.raf && !atlasApp.mapView.annotationRaf);
     assert(await page.evaluate(alignmentError) < 1, 'Layers align after deferred redraw');
     const hoverPoint = await page.evaluate(() => {
       const app = atlasApp, [x, y] = app.projector.toScreen(107.5, 33.5);
