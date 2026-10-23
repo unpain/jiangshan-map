@@ -3,6 +3,7 @@ const { chromium } = require('playwright');
 
 const url = (process.env.ATLAS_URL || 'http://localhost:8765').replace(/\/+$/, '');
 const channel = process.env.ATLAS_BROWSER || 'msedge';
+const framework = process.env.ATLAS_FRAMEWORK || 'vue';
 const ready = page => page.waitForFunction(() => window.atlasApp?.mapView?.visible?.length > 0);
 
 (async () => {
@@ -20,16 +21,17 @@ const ready = page => page.waitForFunction(() => window.atlasApp?.mapView?.visib
     const entryGate = new Promise(resolve => { releaseEntry = resolve; });
     let entryRequested;
     const requestSeen = new Promise(resolve => { entryRequested = resolve; });
-    await page.route(/\/(?:src\/main\.ts|assets\/index-[^/]+\.js)(?:\?.*)?$/, async route => {
+    await page.route(/\/(?:src\/(?:svelte\/)?main\.ts|assets\/(?:index|svelte)-[^/]+\.js)(?:\?.*)?$/, async route => {
       entryRequested();
       await entryGate;
       await route.continue();
     });
-    await page.goto(`${url}/?year=1415`, { waitUntil: 'commit' });
+    await page.goto(`${url}?year=1415`, { waitUntil: 'commit' });
     await requestSeen;
     await page.locator('#app .atlas-loading').waitFor({ state: 'visible' });
     const firstPaint = await page.evaluate(() => {
       const index = document.querySelector('#seo-atlas-directory');
+      if (!index) return {mounted: !!window.atlasApp};
       const css = getComputedStyle(index);
       return {
         mounted: !!window.atlasApp,
@@ -39,7 +41,8 @@ const ready = page => page.waitForFunction(() => window.atlasApp?.mapView?.visib
         overflow: css.overflow,
       };
     });
-    assert.deepEqual(firstPaint, { mounted: false, width: 1, height: 1, clip: 'rect(0px, 0px, 0px, 0px)', overflow: 'hidden' });
+    assert.deepEqual(firstPaint, framework === 'svelte' ? {mounted: false} :
+      { mounted: false, width: 1, height: 1, clip: 'rect(0px, 0px, 0px, 0px)', overflow: 'hidden' });
     releaseEntry();
     await ready(page);
     assert.equal(await page.evaluate(() => atlasApp.year), 1415);
@@ -51,7 +54,7 @@ const ready = page => page.waitForFunction(() => window.atlasApp?.mapView?.visib
       atlasApp.stepTimelineNode = direction => { window.stepCalls++; return step(direction); };
     });
     await page.locator('#act-step-next').click();
-    assert.equal(await page.evaluate(() => window.stepCalls), 1, 'Vue button must execute exactly once');
+    assert.equal(await page.evaluate(() => window.stepCalls), 1, `${framework} button must execute exactly once`);
     await page.locator('#inp-year').fill('741');
     await page.locator('#inp-year').press('Tab');
     await page.waitForFunction(() => atlasApp.year === 741);
@@ -70,24 +73,36 @@ const ready = page => page.waitForFunction(() => window.atlasApp?.mapView?.visib
     await page.waitForFunction(() => document.querySelector('#map-search-results .sr-main')?.textContent?.includes('李白'));
     await page.locator('#map-search-results li:not(.sr-section-head)').first().click();
     await page.waitForFunction(() => atlasApp.activePerson);
-    await page.goto(`${url}/?year=1415&lang=en`);
+    await page.goto(`${url}?year=1415&lang=en`);
     await ready(page);
     assert.equal(await page.evaluate(() => atlasApp.locale), 'en');
     assert.equal(await page.evaluate(() => atlasApp.year), 1415);
 
     if (process.env.ATLAS_DEV === '1') {
-      await page.evaluate(async () => {
+      await page.evaluate(async framework => {
         const old = window.atlasApp;
         old.startAutoplay();
         // Exercise pending camera callbacks at unmount, not just an idle instance.
         old.mapView.onWheel(new WheelEvent('wheel', { deltaY: -120, clientX: 400, clientY: 300 }));
-        document.querySelector('#app').__vue_app__.unmount();
+        if (framework === 'svelte') {
+          const { unmount } = await import('/node_modules/.vite/deps/svelte.js');
+          // Vite may timestamp the entry after edits; reuse that exact module instance.
+          const entry = document.querySelector('script[type="module"][src*="/src/svelte/main.ts"]');
+          const { app } = await import(entry.src);
+          await unmount(app);
+        } else document.querySelector('#app').__vue_app__.unmount();
         if (!old.scope.disposed || window.atlasApp || window.atlasAPI) throw new Error('Atlas was not disposed');
         window.oldAtlas = old;
-        const { createApp } = await import('/node_modules/.vite/deps/vue.js');
-        const { default: App } = await import('/src/App.vue');
-        createApp(App).mount('#app');
-      });
+        if (framework === 'svelte') {
+          const { mount } = await import('/node_modules/.vite/deps/svelte.js');
+          const { default: App } = await import('/src/svelte/App.svelte');
+          mount(App, {target: document.querySelector('#app')});
+        } else {
+          const { createApp } = await import('/node_modules/.vite/deps/vue.js');
+          const { default: App } = await import('/src/App.vue');
+          createApp(App).mount('#app');
+        }
+      }, framework);
       await ready(page);
       await page.waitForTimeout(700);
       assert.equal(await page.locator('.leaflet-container').count(), 1);
@@ -118,6 +133,6 @@ const ready = page => page.waitForFunction(() => window.atlasApp?.mapView?.visib
     await ready(failed);
     assert.equal(await failed.locator('.leaflet-container').count(), 1);
     assert.deepEqual(errors, []);
-    console.log('✓ Vue: single event binding, year/playback, search, locale, deep links, data retry' + (process.env.ATLAS_DEV === '1' ? ', unmount/remount cleanup' : ''));
+    console.log(`✓ ${framework}: single event binding, year/playback, search, locale, deep links, data retry` + (process.env.ATLAS_DEV === '1' ? ', unmount/remount cleanup' : ''));
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

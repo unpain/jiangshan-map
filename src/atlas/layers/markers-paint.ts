@@ -17,7 +17,7 @@ export const markersPaint: PaintRule[] = [
   { key: "corridor-caption", order: 19, important: false,
     when: (node, context) => node.tags.contains("corridor-caption"),
     paint: {
-      fontFamily: "'Songti SC', 'SimSun', serif",
+      fontFamily: '"LXGW WenKai", "KaiTi", serif',
       fontSize: "8.8px",
       fontWeight: "700",
       fill: "#4a341c",
@@ -51,7 +51,7 @@ export const markersPaint: PaintRule[] = [
   { key: "trace-pin-label", order: 23, important: false,
     when: (node, context) => node.tags.contains("trace-pin-label"),
     paint: {
-      fontFamily: "'Songti SC', 'SimSun', serif",
+      fontFamily: '"LXGW WenKai", "KaiTi", serif',
       fontSize: "10.5px",
       fontWeight: "700",
       fill: "#72190b",
@@ -209,7 +209,7 @@ export const markersPaint: PaintRule[] = [
   { key: "name", order: 94, important: false,
     when: (node, context) => node.tags.contains("name") && ancestor(node, parent => parent.tags.contains("settlement-node")),
     paint: {
-      fontFamily: "'Songti SC', 'SimSun', serif",
+      fontFamily: '"LXGW WenKai", "KaiTi", serif',
       fontSize: "8.8px",
       fontWeight: "700",
       fill: "#1c1713",
@@ -257,7 +257,7 @@ export const markersPaint: PaintRule[] = [
   { key: "cap-hint-text", order: 105, important: false,
     when: (node, context) => node.tags.contains("cap-hint-text") && ancestor(node, parent => parent.tags.contains("settlement-node")),
     paint: {
-      fontFamily: "'Songti SC', 'SimSun', serif",
+      fontFamily: '"LXGW WenKai", "KaiTi", serif',
       fontSize: "7.6px",
       fontWeight: "700",
       fill: "#7a2617",
@@ -427,7 +427,7 @@ export const markersPaint: PaintRule[] = [
   { key: "name", order: 152, important: false,
     when: (node, context) => node.tags.contains("name") && node.tags.contains("pass-name") && ancestor(node, parent => parent.tags.contains("settlement-node") && parent.tags.contains("is-pass")),
     paint: {
-      fontFamily: "'Songti SC', 'SimSun', serif",
+      fontFamily: '"LXGW WenKai", "KaiTi", serif',
       fontSize: "7.4px",
       fontWeight: "700",
       fill: "#6e2b17",

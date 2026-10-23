@@ -54,7 +54,7 @@ function main() {
   }
 
   // Verify controller syntax
-  const { appCode, runtimeCode, composable, markup } = require('./atlas_source.cjs');
+  const { appCode, runtimeCode, session, markup } = require('./atlas_source.cjs');
   new vm.Script(runtimeCode, { filename: 'app.js' });
 
   const provinces = sandbox.window.PROVINCE_OUTLINES;
@@ -458,7 +458,7 @@ function main() {
   );
   const llmsTxt = fs.readFileSync(llmsTxtPath, 'utf8');
   assert(
-    composable.includes('window.atlasAPI') &&
+    session.includes('window.atlasAPI') &&
       appCode.includes('resolvePlace(') &&
       appCode.includes('inspect(') &&
       appCode.includes('locate(') &&

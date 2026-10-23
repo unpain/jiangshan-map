@@ -154,7 +154,7 @@ python3 skills/jiangshan-atlas/scripts/jiangshan.py --year 1079,1080,1094,1097 -
 
 ## 本地运行
 
-技术栈：Vue 3 + TypeScript + Vite + Leaflet。需要 Node.js 22.12+，可使用 npm 或 Bun。
+技术栈：Vue 3 / Svelte 5 双入口，共用 TypeScript + Vite + Leaflet。需要 Node.js 22.12+，可使用 npm 或 Bun。
 
 ```bash
 npm install
@@ -164,17 +164,19 @@ npm run dev
 使用 Bun：`bun install` 后运行 `bun run dev`（也可 `bunx vite --host 127.0.0.1 --port 8765`）。打开 http://127.0.0.1:8765；如果端口已被占用，以终端输出为准。
 
 ```bash
-npm run typecheck       # Vue / TS 严格类型检查
+npm run dev:svelte      # 在同一个 Vite 服务中打开 Svelte 入口
+npm run typecheck       # Vue / Svelte / TS 严格类型检查
 npm run build           # 类型检查并生成 dist/
 npm run preview         # 预览生产包
 npm test                # 历史数据、拓扑与领域逻辑校验；需要 Python 3
-npm run test:e2e         # 对已启动的开发/预览服务做浏览器回归
+npm run test:e2e         # 对已启动的服务运行 Vue、Svelte 两版浏览器回归
+npm run test:svelte      # 仅运行 Svelte 版浏览器回归
 npm run profile         # 真实鼠标滚轮性能测试
 ```
 
 发布时部署 `dist/`，不能再直接用静态服务器运行源码根目录。生产包支持站点子目录部署；原有 `?year=`、`?person=` 等链接及 `window.atlasAPI` 保持兼容。浏览器测试默认使用 Edge；其他环境先运行 `npx playwright install chromium` 并设置 `ATLAS_BROWSER=chromium`。可用 `ATLAS_URL` 指定服务地址，`ATLAS_PYTHON` 指定 Python 可执行文件。设置 `ATLAS_OFFLINE=1` 可让浏览器测试和性能测试仅加载本地资源，避免远程字体或统计服务阻塞测试。
 
-代码分层：`src/components/` 是 Vue 单文件组件；`src/composables/useAtlas.ts` 管理启动、命令和卸载；`src/atlas/leaflet-map.ts`、`projector.ts`、`scope.ts` 分别负责地图、投影和资源回收。`controller.js` 暂时保留历史领域逻辑，通过同名 `.d.ts` 提供 TS 接口；生成的数据包仍在 `js/`，数据脚本不受目录迁移影响。地图实例和大型数据不进入 Vue 深度响应式系统。
+默认 `/` 入口使用 `src/components/` 中的 Vue 组件；新增 `/svelte.html` 入口使用 `src/svelte/` 中的独立 Svelte 组件，不加载 Vue 组件。两个入口由同一个 Vite 配置管理，共用 `src/style.css`、历史数据和 Leaflet 地图引擎。`src/atlas/session.ts` 统一管理启动、命令、浏览器 API 和卸载；`src/composables/useAtlas.ts` 与 `src/svelte/context.ts` 分别适配各自的响应式加载状态和组件生命周期。`src/atlas/leaflet-map.ts`、`projector.ts`、`scope.ts` 分别负责地图、投影和资源回收。`controller.js` 暂时保留历史领域逻辑，通过同名 `.d.ts` 提供 TS 接口；生成的数据包仍在 `js/`，数据脚本不受目录迁移影响。地图实例和大型数据不进入 Vue 深度响应式系统。
 
 ---
 
@@ -184,9 +186,9 @@ npm run profile         # 真实鼠标滚轮性能测试
 
 所有地图对象都是 `src/atlas/layers/` 中的 Leaflet 图层，由有序图层组管理。地图文字、城市、关隘、事件、人物轨迹和挑战标记由 `src/atlas/canvas/` 中的自定义 Canvas 图层直接绘制。标注的路径、文字度量、样式和命中区域缓存为绘制指令，镜头变化通过 `requestAnimationFrame` 合并更新；绘制帧不读取地图 DOM 布局，不复制文字位图。缩放过程中逐帧更新字号、标签避让和地理描边，停止滚动后不再额外重排；纯平移复用已有文字布局。两层画布使用同一帧的镜头位置，避免标注和疆域错位。
 
-隐藏 SVG、DOM 选择器、计算样式采样和 MutationObserver 已全部删除。地图配色、字号、线型和响应式状态由 TypeScript 绘制配置管理，图层变化直接触发重绘；点击、悬停由 Canvas 命中检测交给对应的 Leaflet 地图对象。按钮小图标仍用 SVG。地图字体使用本地中文字体栈，没有额外在线底图请求；时间轴、搜索和分享坐标保持兼容。Leaflet 许可证保留在 assets/vendor/leaflet/LICENSE。
+隐藏 SVG、DOM 选择器、计算样式采样和 MutationObserver 已全部删除。地图配色、字号、线型和响应式状态由 TypeScript 绘制配置管理，图层变化直接触发重绘；点击、悬停由 Canvas 命中检测交给对应的 Leaflet 地图对象。按钮小图标仍用 SVG。界面与地图标注统一使用本地托管的霞鹜文楷（LXGW WenKai v1.530，WOFF2），字体来源及 OFL 授权见 `assets/fonts/`；所有界面控件采用直角。没有额外在线底图请求；时间轴、搜索和分享坐标保持兼容。Leaflet 许可证保留在 assets/vendor/leaflet/LICENSE。
 
-数据校验运行 `npm test`。启动开发服务后，运行 `npm run test:e2e`，覆盖地图、Vue 生命周期和 Canvas 标注的实际点击、图层开关、Leaflet 图层移除与重新挂载、绘制配置更新、地图无 SVG 节点、双语、移动端寻址及连续平移；可用 `ATLAS_URL` 和 `ATLAS_BROWSER` 调整地址与浏览器。性能回归运行 `npm run profile`：固定 1440×1000、DPR 2、明代 1415 年，发送 32 次真实滚轮事件（间隔 70ms），输出帧间隔、长任务、绘制次数和图层偏移，并检查滚动期间持续更新文字布局、停止后文字位置和显隐状态不再变化。帧间隔是本机测试结果，不代表所有设备的实际帧率。
+数据校验运行 `npm test`。启动开发服务后，运行 `npm run test:e2e`，覆盖地图、Vue / Svelte 生命周期和 Canvas 标注的实际点击、图层开关、Leaflet 图层移除与重新挂载、绘制配置更新、地图无 SVG 节点、双语、移动端寻址及连续平移；可用 `ATLAS_URL` 和 `ATLAS_BROWSER` 调整地址与浏览器。性能回归运行 `npm run profile`：固定 1440×1000、DPR 2、明代 1415 年，发送 32 次真实滚轮事件（间隔 70ms），输出帧间隔、长任务、绘制次数和图层偏移，并检查滚动期间持续更新文字布局、停止后文字位置和显隐状态不再变化。帧间隔是本机测试结果，不代表所有设备的实际帧率。
 
 ## GeoJSON 导出（供 Leaflet / MapLibre / QGIS 使用）
 

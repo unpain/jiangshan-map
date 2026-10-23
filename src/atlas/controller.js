@@ -1619,7 +1619,7 @@ export class HistoricalAtlasController {
             y: '-6.8',
             width: String(pillW),
             height: '13.6',
-            rx: '6.8',
+            rx: '0',
           },
           innerG
         );

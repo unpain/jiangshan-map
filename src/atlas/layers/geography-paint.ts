@@ -32,7 +32,7 @@ export const geographyPaint: PaintRule[] = [
   { key: "hydro-label", order: 4, important: false,
     when: (node, context) => node.tags.contains("hydro-label"),
     paint: {
-      fontFamily: "'Songti SC', 'SimSun', serif",
+      fontFamily: '"LXGW WenKai", "KaiTi", serif',
       fontStyle: "italic",
       fill: "rgba(20, 76, 108, 0.92)",
       textAnchor: "middle",
@@ -56,7 +56,7 @@ export const geographyPaint: PaintRule[] = [
   { key: "neighbor-caption", order: 6, important: false,
     when: (node, context) => node.tags.contains("neighbor-caption"),
     paint: {
-      fontFamily: "'PingFang SC', 'Microsoft YaHei', sans-serif",
+      fontFamily: '"LXGW WenKai", "KaiTi", serif',
       fontSize: "8px",
       fontWeight: "400",
       fill: "#686e73",
@@ -114,7 +114,7 @@ export const geographyPaint: PaintRule[] = [
   { key: "province-caption", order: 11, important: false,
     when: (node, context) => node.tags.contains("province-caption"),
     paint: {
-      fontFamily: "'PingFang SC', 'Microsoft YaHei', sans-serif",
+      fontFamily: '"LXGW WenKai", "KaiTi", serif',
       fontSize: "9.2px",
       fill: "#6e655b",
       textAnchor: "middle",
@@ -159,7 +159,7 @@ export const geographyPaint: PaintRule[] = [
   { key: "region-caption", order: 15, important: false,
     when: (node, context) => node.tags.contains("region-caption"),
     paint: {
-      fontFamily: "'Songti SC', 'SimSun', serif",
+      fontFamily: '"LXGW WenKai", "KaiTi", serif',
       fontSize: "9px",
       fontWeight: "700",
       fill: "#522212",
@@ -186,7 +186,7 @@ export const geographyPaint: PaintRule[] = [
   { key: "polity-caption", order: 17, important: false,
     when: (node, context) => node.tags.contains("polity-caption"),
     paint: {
-      fontFamily: "'Songti SC', 'SimSun', serif",
+      fontFamily: '"LXGW WenKai", "KaiTi", serif',
       fontWeight: "700",
       fontSize: "19px",
       fill: "#1c1612",

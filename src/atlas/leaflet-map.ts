@@ -35,6 +35,7 @@ export class LeafletAtlasMap extends L.Layer {
   resizeObserver!: ResizeObserver;
   wheelListener!: (event: WheelEvent) => void;
   private fontListener = () => {
+    this.app._typoDirty = true;
     this.annotationDirty = true;
     this.scheduleAnnotation();
   };

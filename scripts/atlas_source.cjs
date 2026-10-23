@@ -19,5 +19,6 @@ window.MercatorProjector = MercatorProjector;
 exports.runtimeCode = runtimeCode;
 exports.appCode = controller + '\n' + projector;
 exports.composable = read('src/composables/useAtlas.ts');
+exports.session = read('src/atlas/session.ts');
 exports.markup = () => read('index.html') + ['AtlasHeader', 'MapViewport', 'ChroniclePane', 'TimelineDock']
   .map(name => read(`src/components/${name}.vue`)).join('\n');

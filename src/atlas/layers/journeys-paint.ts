@@ -119,7 +119,7 @@ export const journeysPaint: PaintRule[] = [
   { key: "jn-num", order: 45, important: false,
     when: (node, context) => node.tags.contains("jn-num"),
     paint: {
-      fontFamily: "'PingFang SC', 'Microsoft YaHei', sans-serif",
+      fontFamily: '"LXGW WenKai", "KaiTi", serif',
       fontSize: "7.9px",
       fontWeight: "700",
       textAnchor: "middle",
@@ -130,7 +130,7 @@ export const journeysPaint: PaintRule[] = [
   { key: "jn-label", order: 46, important: false,
     when: (node, context) => node.tags.contains("jn-label"),
     paint: {
-      fontFamily: "'Songti SC', 'SimSun', serif",
+      fontFamily: '"LXGW WenKai", "KaiTi", serif',
       fontSize: "10.2px",
       fontWeight: "700",
       textAnchor: "middle",

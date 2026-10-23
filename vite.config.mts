@@ -1,5 +1,6 @@
 import { defineConfig, type Plugin } from 'vite';
 import vue from '@vitejs/plugin-vue';
+import { svelte } from '@sveltejs/vite-plugin-svelte';
 import sirv from 'sirv';
 import { cp, mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
@@ -42,5 +43,9 @@ function atlasResources(): Plugin {
 export default defineConfig({
   base: './',
   publicDir: false,
-  plugins: [vue({ template: { transformAssetUrls: false } }), atlasResources()],
+  plugins: [vue({ template: { transformAssetUrls: false } }), svelte(), atlasResources()],
+  build: { rolldownOptions: { input: {
+    index: resolve(import.meta.dirname, 'index.html'),
+    svelte: resolve(import.meta.dirname, 'svelte.html'),
+  } } },
 });

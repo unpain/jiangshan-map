@@ -153,7 +153,7 @@ In browser automation environments (Playwright / WebMCP), call `window.atlasAPI`
 
 ## Run Locally
 
-Stack: Vue 3 + TypeScript + Vite + Leaflet. Requires Node.js 22.12+; npm and Bun are supported.
+Stack: Vue 3 and Svelte 5 entries sharing TypeScript + Vite + Leaflet. Requires Node.js 22.12+; npm and Bun are supported.
 
 ```bash
 npm install
@@ -163,19 +163,21 @@ npm run dev
 With Bun, run `bun install` then `bun run dev` (or `bunx vite --host 127.0.0.1 --port 8765`). Open http://127.0.0.1:8765; use the URL printed by Vite if that port is occupied.
 
 ```bash
-npm run typecheck       # Strict Vue / TypeScript checks
+npm run dev:svelte      # Open the Svelte entry on the same Vite server
+npm run typecheck       # Strict Vue / Svelte / TypeScript checks
 npm run build           # Typecheck and create dist/
 npm run preview         # Preview the production build
 npm test                # Data, topology and domain regression suite; requires Python 3
-npm run test:e2e         # Browser regression against a running dev/preview server
+npm run test:e2e         # Browser regression for both entries on a running server
+npm run test:svelte      # Run only the Svelte browser suite
 npm run profile         # Native mouse-wheel benchmark
 ```
 
 Deploy `dist/` to a static host, including under a subdirectory. Serving the source root directly no longer runs the app. Existing query links and `window.atlasAPI` remain compatible. Browser checks use Edge by default; alternatively run `npx playwright install chromium` and set `ATLAS_BROWSER=chromium`. Set `ATLAS_URL` for another server and `ATLAS_PYTHON` for a Python executable. Use `ATLAS_OFFLINE=1` to keep browser tests and profiling independent of remote fonts and analytics.
 
-Vue components live in `src/components/`; `src/composables/useAtlas.ts` owns startup, commands and teardown. The Leaflet renderer, projection, resource scope and loading boundary are TypeScript modules in `src/atlas/`. Historical domain rendering remains in `controller.js`, with a typed `.d.ts` interface. Generated data stays in `js/` for compatibility with existing tools. Map instances and large datasets stay outside deep Vue reactivity.
+The default `/` entry uses Vue components in `src/components/`; `/svelte.html` uses independent Svelte components in `src/svelte/`. Both entries are configured in Vite and share `src/style.css`, historical data and the same Leaflet engine. `src/atlas/session.ts` owns startup, commands, the browser API and teardown; `src/composables/useAtlas.ts` and `src/svelte/context.ts` adapt loading state and lifecycle to each framework. Svelte does not mount or load Vue components. The Leaflet renderer, projection, resource scope and loading boundary are TypeScript modules in `src/atlas/`. Historical domain rendering remains in `controller.js`, with a typed `.d.ts` interface. Generated data stays in `js/` for compatibility with existing tools. Map instances and large datasets stay outside deep Vue reactivity.
 
-All map features are Leaflet layers in `src/atlas/layers/`, organized in ordered layer groups. Geographic paths, text, cities, events, routes and quiz markers are painted by custom Canvas rendering in `src/atlas/canvas/` and `leaflet-map.ts`. The hidden SVG tree, DOM selectors, computed CSS sampling and mutation observer have been removed. Typed cartographic paint rules preserve the palette, typography, line styles and responsive states. Feature changes explicitly invalidate the display lists; zoom frames update typography, label collision placement and geographic strokes together; pure pans reuse the display list. Both Canvas surfaces follow the same camera frame, with no extra label reflow when scrolling stops. Toolbar icons still use SVG.
+All map features are Leaflet layers in `src/atlas/layers/`, organized in ordered layer groups. Geographic paths, text, cities, events, routes and quiz markers are painted by custom Canvas rendering in `src/atlas/canvas/` and `leaflet-map.ts`. The hidden SVG tree, DOM selectors, computed CSS sampling and mutation observer have been removed. Typed cartographic paint rules preserve the palette, typography, line styles and responsive states. Feature changes explicitly invalidate the display lists; zoom frames update typography, label collision placement and geographic strokes together; pure pans reuse the display list. Both Canvas surfaces follow the same camera frame, with no extra label reflow when scrolling stops. Toolbar icons still use SVG. Both entries use square UI corners and locally hosted LXGW WenKai v1.530 for interface text and Canvas labels; font provenance and the OFL license are in `assets/fonts/`.
 
 The browser suite also checks city/event/route clicks, layer toggles, native Leaflet removal and remounting, explicit paint changes, absence of map SVG nodes, locale updates, touch quiz input and layout-free pan frames. The wheel profile checks continuous label layout during zoom and unchanged placement after scrolling stops, and reports display-list rebuilds, layer drift and frame timings.
 

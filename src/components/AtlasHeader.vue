@@ -34,6 +34,7 @@ const atlas = useAtlas();
             </svg>
           </button>
         </div>
+        <button id="act-switch-framework" @click="atlas.switchFramework('svelte')" class="action-btn subtle" type="button" title="切换到 Svelte / Switch to Svelte">Svelte</button>
         <button id="act-locale" @click="atlas.toggleLocale()" class="action-btn subtle locale-switch" title="Switch language / 切换中英文">
           <svg class="btn-svg" viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><circle cx="8" cy="8" r="6.2" fill="none" stroke="currentColor" stroke-width="1.3"/><ellipse cx="8" cy="8" rx="2.8" ry="6.2" fill="none" stroke="currentColor" stroke-width="1.2"/><line x1="2" y1="8" x2="14" y2="8" stroke="currentColor" stroke-width="1.2"/></svg>
           <span id="lbl-locale">EN</span>

@@ -124,7 +124,7 @@ async function checkLiveFrames(page) {
 }
 
 async function checkDesktop(page) {
-  await page.goto(`${url}/?year=1415`, {waitUntil: 'domcontentloaded'});
+  await page.goto(`${url.replace(/\/+$/, '')}?year=1415`, {waitUntil: 'domcontentloaded'});
   await ready(page);
   assert.equal(await page.locator('#atlas-svg, #leaflet-map svg').count(), 0);
   assert(await page.evaluate(() => atlasApp.mapView.map.hasLayer(atlasApp.scene)));
@@ -163,7 +163,7 @@ async function checkDesktop(page) {
 async function checkTouch(browser) {
   const page = await browser.newPage({viewport: {width: 390, height: 844}, isMobile: true, hasTouch: true, deviceScaleFactor: 2});
   await page.route('**/*', route => new URL(route.request().url()).origin === new URL(url).origin ? route.continue() : route.abort());
-  await page.goto(`${url}/?year=741`, {waitUntil: 'domcontentloaded'});
+  await page.goto(`${url.replace(/\/+$/, '')}?year=741`, {waitUntil: 'domcontentloaded'});
   await ready(page);
   await page.evaluate(() => atlasApp.closeMilestoneBalloon());
   const city = await pointFor(page, [{"tags":["name"],"within":{"tags":["settlement-node"]}}]);

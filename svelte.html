@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#f3eee4" />
+    <meta name="robots" content="noindex, follow" />
+    <meta name="description" id="meta-description" content="江山时序 Svelte 版：中国历史地图与时间轴。" />
+    <title>江山时序 · Svelte</title>
+  <link rel="icon" type="image/svg+xml" href="assets/favicon.svg" />
+  <link rel="apple-touch-icon" href="assets/favicon.svg" />
+    <style>
+      .atlas-loading { position: fixed; inset: 0; z-index: 2000; display: flex;
+        flex-direction: column; align-items: center; justify-content: center;
+        background: #f4efdf; color: #553c2b; gap: 16px; }
+    </style>
+  </head>
+  <body>
+    <div id="app"><div class="atlas-loading" role="status">正在加载历史地图…</div></div>
+    <script type="module" src="/src/svelte/main.ts"></script>
+  </body>
+</html>

@@ -4,23 +4,28 @@
   "private": true,
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 8765",
-    "typecheck": "vue-tsc --noEmit",
-    "build": "vue-tsc --noEmit && vite build",
+    "typecheck": "vue-tsc --noEmit && svelte-check --tsconfig ./tsconfig.svelte.json",
+    "build": "npm run typecheck && vite build",
     "preview": "vite preview --host 127.0.0.1 --port 8765",
     "test": "node scripts/validate_atlas.js",
-    "test:e2e": "node scripts/validate_leaflet.cjs && node scripts/validate_vue.cjs && node scripts/validate_canvas_annotations.cjs",
-    "profile": "node scripts/profile_leaflet.cjs"
+    "test:e2e": "node scripts/validate_leaflet.cjs && node scripts/validate_vue.cjs && node scripts/validate_canvas_annotations.cjs && node scripts/validate_svelte.cjs",
+    "profile": "node scripts/profile_leaflet.cjs",
+    "dev:svelte": "vite --host 127.0.0.1 --port 8765 --open /svelte.html",
+    "test:svelte": "node scripts/validate_svelte.cjs"
   },
   "dependencies": {
     "leaflet": "1.9.4",
+    "svelte": "^5.57.2",
     "vue": "^3.5.44"
   },
   "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "^7.3.1",
     "@types/leaflet": "^1.9.21",
     "@types/node": "^22.0.0",
     "@vitejs/plugin-vue": "^6.0.0",
     "playwright": "^1.56.0",
     "sirv": "^3.0.0",
+    "svelte-check": "^4.7.7",
     "typescript": "~5.9.3",
     "vite": "^8.3.5",
     "vue-tsc": "^3.1.0"
