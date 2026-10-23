@@ -50,17 +50,29 @@ async function checkLayers(page) {
 
 // Native layer removal must remove its pixels and hits without losing its data.
 async function checkLifecycle(page) {
+  // Keep hover-driven geography changes out of the layer-count comparison.
+  await page.mouse.move(5, 5);
   // Idle cleanup schedules geography separately from labels; compare settled frames.
   await ready(page);
   const result = await page.evaluate(async () => {
     const app = atlasApp, view = app.mapView, map = view.map;
-    const settled = () => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    const settled = () => new Promise((resolve, reject) => {
+      const deadline = performance.now() + 5000;
+      const check = () => {
+        if (!view.dirty && !view.raf && !view.annotationDirty && !view.annotationRaf && !view.moving) resolve();
+        else if (performance.now() > deadline) reject(new Error('Layer rendering did not settle'));
+        else requestAnimationFrame(check);
+      };
+      requestAnimationFrame(check);
+    });
     const feature = view.visible.find(record => record.node.tags.contains('prefecture-shape')).node;
     const commands = feature.get('d'), count = view.visible.length;
     map.removeLayer(feature); await settled();
     const removed = !map.hasLayer(feature) && !view.visible.some(record => record.node === feature);
     map.addLayer(feature); await settled();
     const restored = map.hasLayer(feature) && view.visible.length === count && feature.get('d') === commands;
+    if (!restored) throw new Error(JSON.stringify({attached: map.hasLayer(feature),
+      before: count, after: view.visible.length, geometryUnchanged: feature.get('d') === commands}));
     map.removeLayer(app.grpSettlements); await settled();
     const groupRemoved = !view.annotations.items.some(item => item.node.ancestor({id: 'grp-settlements'}));
     map.addLayer(app.grpSettlements); await settled();
